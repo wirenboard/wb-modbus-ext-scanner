@@ -1,0 +1,12 @@
+Source: wb-modbus-ext-scanner
+Maintainer: Nikita Kulikov <n.kulikov@wirenboard.ru>
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Build-Depends: debhelper (>= 9), pkg-config
+
+Package: wb-modbus-ext-scanner
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Scanner utility for extended 
+    Wiren Board Modbus protocol
