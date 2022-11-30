@@ -1,0 +1,5 @@
+wb-modbus-ext-scanner (1.0.0) stable; urgency=medium
+
+  * Initial public release
+
+ -- Nikita Kulikov <n.kulikov@wirenboard.ru>  Tue, 29 Nov 2022 14:32:58 +0300
