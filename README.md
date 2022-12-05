@@ -2,14 +2,20 @@
 
 Репозиторий содержит описание расширения протокола Modbus Wiren Board и пример реализции утилиты для работы с ним.
 
+## Установка
+
+`apt update && apt install wb-modbus-ext-scanner`
+
+**!!! Перед использованием убедитесь что последовательный порт не используется другим приложением. Остановите сервис wb-mqtt-serial**
+
 ## Параметры утилиты
 
 Для вывода помощи вызовите утилиту без аргументов
 
 ```
-# ./wb-modbus-scanner
+# wb-modbus-scanner
 Wirenboard modbus extension tool. vsrsion: 1.0.0
-Usage: ./wb-modbus-scanner -d device [-b baud] [-s sn] [-i id] [-D]
+Usage: wb-modbus-scanner -d device [-b baud] [-s sn] [-i id] [-D]
 
 Options:
     -d device      TTY serial device
@@ -18,8 +24,8 @@ Options:
     -i id          slave id
     -D             debug mode
 
-For scan use:              ./wb-modbus-scanner -d device [-b baud] [-D]
-For set slave id use:      ./wb-modbus-scanner -d device [-b baud] -s sn -i id [-D]
+For scan use:              wb-modbus-scanner -d device [-b baud] [-D]
+For set slave id use:      wb-modbus-scanner -d device [-b baud] -s sn -i id [-D]
 ```
 
 ## Сканирование устройства на шине
@@ -27,7 +33,7 @@ For set slave id use:      ./wb-modbus-scanner -d device [-b baud] -s sn -i id [
 Пример вызова:
 
 ```
-# ./wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200
+# wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200
 Serial port: /dev/ttyRS485-1
 Use baud 115200
 Send SCAN INIT cmd
@@ -43,7 +49,7 @@ End SCAN
 Пример вызова:
 
 ```
-# ./wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200 -s 4267937719 -i 3
+# wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200 -s 4267937719 -i 3
 Serial port: /dev/ttyRS485-1
 Use baud 115200
 Chande ID for device with serial   4267937719 [FE638FB7] New ID: 3

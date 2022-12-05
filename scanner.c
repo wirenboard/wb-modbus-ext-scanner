@@ -17,8 +17,6 @@
 
 #define SCPECIAL_ADDRESS            0xFD
 
-#define VERSION                     "1.0.0"
-
 int debug = 0;
 
 int fd = 0;
@@ -262,15 +260,20 @@ void tool_scan(void)
         uint32_t fwver;
     } dev_info_t;
 
-    printf("Send SCAN INIT cmd \r\n");
-    send_cmd_scan_init();
 
     int dn = 0;
+
+    int scan_init = 1;
 
     while (1) {
         nanosleep(&frame_delay, NULL);
 
-        send_cmd_scan_next();
+        if (scan_init) {
+            send_cmd_scan_init();
+            scan_init = 0;
+        } else {
+            send_cmd_scan_next();
+        }
 
         uint8_t * r;
         int len = read_responce(&r);
