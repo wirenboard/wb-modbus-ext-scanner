@@ -1,3 +1,9 @@
+wb-modbus-ext-scanner (1.1.0) stable; urgency=medium
+
+  * Change scan process. change README and protocol. get version from debian pkg
+
+ -- Nikita Kulikov <n.kulikov@wirenboard.ru>  Mon, 05 Dec 2022 18:54:53 +0600
+
 wb-modbus-ext-scanner (1.0.0) stable; urgency=medium
 
   * Initial public release
