@@ -400,6 +400,10 @@ int main(int argc, char *argv[])
         case 'h':
             print_help(argv[0]);
             return EXIT_SUCCESS;
+
+        default:
+            print_help(argv[0]);
+            return EXIT_INVALIDARGUMENT;
         }
     }
 
