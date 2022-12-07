@@ -9,6 +9,8 @@
 #include <time.h>
 #include "modbus_crc.h"
 
+#define EXIT_INVALIDARGUMENT        2
+
 #define BUFFER_SIZE                 512
 #define DEVICES_MAX                 100
 
@@ -338,11 +340,10 @@ void tool_change_id(uint32_t sn, int new_id)
     }
 }
 
-int main(int argc, char *argv[])
+void print_help(char* argv0)
 {
-    if (argc == 1) {
         printf(
-            "Wirenboard modbus extension tool. vsrsion: " VERSION "\n"
+            "Wiren Board extended Modbus scanner tool. version: " VERSION "\n"
             "Usage: %s -d device [-b baud] [-s sn] [-i id] [-D]\n"
             "\n"
             "Options:\n"
@@ -354,8 +355,14 @@ int main(int argc, char *argv[])
             "\n"
             "For scan use:              %s -d device [-b baud] [-D]\n"
             "For set slave id use:      %s -d device [-b baud] -s sn -i id [-D]\n"
-            , argv[0], argv[0], argv[0]);
-        return -1;
+            , argv0, argv0, argv0);
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc == 1) {
+        print_help(argv[0]);
+        return EXIT_INVALIDARGUMENT;
     }
 
     int c;
@@ -363,14 +370,14 @@ int main(int argc, char *argv[])
     uint64_t sn = 0;
     int id = 0;
 
-    while ((c = getopt(argc, argv, "d:b:s:i:D")) != -1) {
+    while ((c = getopt(argc, argv, "hd:b:s:i:D")) != -1) {
         switch(c) {
         case 'd':
             printf("Serial port: %s\n", optarg);
             fd = open(optarg, O_RDWR | O_NOCTTY | O_SYNC);
             if (fd < 0) {
                 printf("Error opening port %s\n", strerror(errno));
-                return -1;
+                return EXIT_FAILURE;
             }
             break;
 
@@ -389,16 +396,20 @@ int main(int argc, char *argv[])
         case 'i':
             sscanf(optarg, "%d", &id);
             break;
+
+        case 'h':
+            print_help(argv[0]);
+            return EXIT_SUCCESS;
         }
     }
 
     if (fd == 0) {
         printf("Serial port not specified\n");
-        return -1;
+        return EXIT_INVALIDARGUMENT;
     }
 
     if (configure_tty(baud) != 0) {
-        return -1;
+        return EXIT_FAILURE;
     }
 
     if ((sn != 0) || (id != 0)) {
@@ -406,11 +417,11 @@ int main(int argc, char *argv[])
             tool_change_id(sn, id);
         } else {
             printf("both sn and new id necessery for change id\n");
-            return -1;
+            return EXIT_FAILURE;
         }
     } else {
         tool_scan();
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }
