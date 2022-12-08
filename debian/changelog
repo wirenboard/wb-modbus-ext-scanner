@@ -1,3 +1,11 @@
+wb-modbus-ext-scanner (1.1.1) stable; urgency=medium
+
+  * show help message with -h flag
+  * make return codes valid
+  * fix minor typos
+
+ -- Nikita Maslov <nikita.maslov@wirenboard.ru>  Wed, 07 Dec 2022 15:46:58 +0600
+
 wb-modbus-ext-scanner (1.1.0) stable; urgency=medium
 
   * Change scan process. change README and protocol. get version from debian pkg
