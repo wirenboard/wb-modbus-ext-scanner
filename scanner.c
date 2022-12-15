@@ -93,6 +93,104 @@ void send_cmd_in_tx_buf(uint8_t crc_offset)
     delay_send(len);
 }
 
+typedef struct {
+    uint8_t cmd;
+    uint8_t payload_len_index;
+    uint8_t frame_len;
+} cmd_len_desc_t;
+
+cmd_len_desc_t ext_cmd_desc[] = {
+    { .cmd = 0x03, .payload_len_index = 0, .frame_len = 10 },           // Функция ответа на сканирование
+    { .cmd = 0x04, .payload_len_index = 0, .frame_len = 5 },            // Функция конца сканирования
+};
+
+cmd_len_desc_t std_cmd_desc[] = {
+    { .cmd = 0x01, .payload_len_index = 2, .frame_len = 5 },
+    { .cmd = 0x02, .payload_len_index = 2, .frame_len = 5 },
+    { .cmd = 0x03, .payload_len_index = 2, .frame_len = 5 },
+    { .cmd = 0x04, .payload_len_index = 2, .frame_len = 5 },
+
+    { .cmd = 0x05, .payload_len_index = 0, .frame_len = 8 },
+    { .cmd = 0x06, .payload_len_index = 0, .frame_len = 8 },
+    { .cmd = 0x0F, .payload_len_index = 0, .frame_len = 8 },
+    { .cmd = 0x10, .payload_len_index = 0, .frame_len = 8 },
+};
+
+cmd_len_desc_t * get_cmd_len_desc(uint8_t cmd, int is_ext)
+{
+    cmd_len_desc_t * desc;
+    int desc_num;
+
+    if (is_ext) {
+        desc = ext_cmd_desc;
+        desc_num = sizeof(ext_cmd_desc) / sizeof(ext_cmd_desc[0]);
+    } else {
+        desc = std_cmd_desc;
+        desc_num = sizeof(std_cmd_desc) / sizeof(std_cmd_desc[0]);
+    }
+
+    for (int i = 0; i < desc_num; i++) {
+        if (desc[i].cmd == cmd) {
+            return &desc[i];
+        }
+    }
+    return NULL;
+}
+
+int check_cmd_in_rx_buffer(uint8_t * buf, int available_len)
+{
+    if (buf[0] != 0xFD) {
+        return 0;
+    }
+
+    if (buf[1] != 0x60) {
+        return 0;
+    }
+
+    if (available_len < 2) {
+        return 0;
+    }
+
+
+    uint8_t cmd = buf[2];
+    int is_ext = 1;
+    int additional_len = 0;
+
+    int len = 0;
+
+    if (cmd == 0x09) {
+        // Функция ответа на стандартную команду
+        if (available_len < 7) {
+            return 0;
+        }
+
+        additional_len = 6;
+        is_ext = 0;
+        cmd = buf[7];
+    }
+
+    cmd_len_desc_t * desc = get_cmd_len_desc(cmd, is_ext);
+
+    if (desc == NULL) {
+        return 0;
+    }
+
+    if (desc->payload_len_index) {
+
+        if (available_len < (additional_len + desc->payload_len_index)) {
+            return 0;
+        }
+
+        len = buf[additional_len + desc->payload_len_index];
+    }
+
+    len += desc->frame_len;
+    len += additional_len;
+
+    return len;
+}
+
+
 int read_responce(uint8_t ** ptr)
 {
     uint8_t * rb = rx_buf;
@@ -112,14 +210,19 @@ int read_responce(uint8_t ** ptr)
             if (data_len >= RESPONCE_MIN_LEN) {
                 for (unsigned i = 0; i < data_len - RESPONCE_MIN_LEN + 1; i++) {
                     uint8_t * resp = &rx_buf[i];
-                    int len = data_len - i;
 
-                    if (modbus_crc(resp, len - 2) == u16_from_le_buf8(rb - 2)) {
-                        if (debug) {
-                            print_hb("    <-", rx_buf, data_len);
+                    int available_len = data_len - i;
+                    int len = check_cmd_in_rx_buffer(resp, available_len);
+                    if (len) {
+                        if (len <= available_len) {
+                            if (modbus_crc(resp, len - 2) == u16_from_le_buf8(&resp[len - 2])) {
+                                if (debug) {
+                                    print_hb("    <-", rx_buf, data_len);
+                                }
+                                *ptr = resp;
+                                return len;
+                            }
                         }
-                        *ptr = resp;
-                        return len;
                     }
                 }
             }
