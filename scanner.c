@@ -18,12 +18,41 @@
 #define RESPONCE_MIN_LEN            4
 
 #define SCPECIAL_ADDRESS            0xFD
+#define SCPECIAL_CMD                0x60
+
+#define CMD_EXT_SCAN_START          0x01
+#define CMD_EXT_SCAN_NEXT           0x02
+#define CMD_EXT_SCAN_RESP           0x03
+#define CMD_EXT_SCAN_END            0x04
+
+#define CMD_EXT_STD_PDU_REQ         0x08
+#define CMD_EXT_STD_PDU_RESP        0x09
+
+#define HOLDREG_WB_SLAVE_ID         128
+
+
+#define PAYLOAD_LEN_FIXED           0
+#define PAYLOAD_EXT_OFFSET          7
 
 int debug = 0;
 
 int fd = 0;
-struct timespec frame_delay;
-uint8_t mbuf[BUFFER_SIZE];
+struct timespec byte_send_time;
+uint8_t rx_buf[BUFFER_SIZE];
+uint8_t tx_buf[BUFFER_SIZE];
+
+void delay_send(int len)
+{
+    for (int i = 0; i < len; i++) {
+        nanosleep(&byte_send_time, NULL);
+    }
+}
+
+void delay_frame(void)
+{
+    // 3,5 байта, для надежности 5
+    delay_send(5);
+}
 
 static inline void u16_to_le_buf8(uint8_t * buf, uint16_t value)
 {
@@ -64,28 +93,130 @@ void print_hb(char * msg, uint8_t * b, int len)
     printf("\r\n");
 }
 
-void send_cmd_in_mbuf(uint8_t crc_offset)
+void send_cmd_in_tx_buf(uint8_t crc_offset)
 {
-    u16_to_le_buf8(&mbuf[crc_offset], modbus_crc(mbuf, crc_offset));
+    int len  = crc_offset + 2;
+    u16_to_le_buf8(&tx_buf[crc_offset], modbus_crc(tx_buf, crc_offset));
     if (debug) {
-        print_hb("    ->", mbuf, crc_offset + 2);
+        print_hb("    ->", tx_buf, len);
     }
-    int wlen = write(fd, mbuf, crc_offset + 2);
+    int wlen = write(fd, tx_buf, len);
     if (wlen != (crc_offset + 2)) {
         printf("Error from write: %d, %d\n", wlen, errno);
     }
+    // ожидание фактического завершения асинхронной отправки
+    delay_send(len);
 }
+
+typedef struct {
+    uint8_t cmd;
+    uint8_t payload_len_index;
+    uint8_t frame_len;
+} cmd_len_desc_t;
+
+static const cmd_len_desc_t ext_cmd_desc[] = {
+    { .cmd = CMD_EXT_SCAN_RESP, .payload_len_index = PAYLOAD_LEN_FIXED, .frame_len = 10 },      // Функция ответа на сканирование
+    { .cmd = CMD_EXT_SCAN_END, .payload_len_index = PAYLOAD_LEN_FIXED, .frame_len = 5 },        // Функция конца сканирования
+};
+
+static const cmd_len_desc_t std_cmd_desc[] = {
+    { .cmd = 0x01, .payload_len_index = 2, .frame_len = 5 },
+    { .cmd = 0x02, .payload_len_index = 2, .frame_len = 5 },
+    { .cmd = 0x03, .payload_len_index = 2, .frame_len = 5 },
+    { .cmd = 0x04, .payload_len_index = 2, .frame_len = 5 },
+
+    { .cmd = 0x05, .payload_len_index = PAYLOAD_LEN_FIXED, .frame_len = 8 },
+    { .cmd = 0x06, .payload_len_index = PAYLOAD_LEN_FIXED, .frame_len = 8 },
+    { .cmd = 0x0F, .payload_len_index = PAYLOAD_LEN_FIXED, .frame_len = 8 },
+    { .cmd = 0x10, .payload_len_index = PAYLOAD_LEN_FIXED, .frame_len = 8 },
+};
+
+// находит структуру описывающую команду
+const cmd_len_desc_t * get_cmd_len_desc(uint8_t cmd, int is_ext)
+{
+    const cmd_len_desc_t * desc;
+    int desc_num;
+
+    if (is_ext) {
+        desc = ext_cmd_desc;
+        desc_num = sizeof(ext_cmd_desc) / sizeof(ext_cmd_desc[0]);
+    } else {
+        desc = std_cmd_desc;
+        desc_num = sizeof(std_cmd_desc) / sizeof(std_cmd_desc[0]);
+    }
+
+    for (int i = 0; i < desc_num; i++) {
+        if (desc[i].cmd == cmd) {
+            return &desc[i];
+        }
+    }
+    return NULL;
+}
+
+int check_cmd_in_rx_buffer(uint8_t * buf, int available_len)
+{
+    if (buf[0] != SCPECIAL_ADDRESS) {
+        return 0;
+    }
+
+    if (buf[1] != SCPECIAL_CMD) {
+        return 0;
+    }
+
+    if (available_len < 2) {
+        return 0;
+    }
+
+    uint8_t cmd = buf[2];
+    int is_ext = 1;
+    int additional_len = 0;
+
+    int len = 0;
+
+    if (cmd == CMD_EXT_STD_PDU_RESP) {
+        // Функция ответа на стандартную команду обрабатывается отдельно
+        if (available_len < PAYLOAD_EXT_OFFSET) {
+            return 0;
+        }
+
+        // команда длинее на 6 байт. такак как PDU начинаектся с 7го байта но не имеет байта с адресом устройства как стандартный пакет
+        additional_len = 6;
+        is_ext = 0;
+        cmd = buf[PAYLOAD_EXT_OFFSET];
+    }
+
+    const cmd_len_desc_t * desc = get_cmd_len_desc(cmd, is_ext);
+
+    if (desc == NULL) {
+        return 0;
+    }
+
+    if (desc->payload_len_index) {
+
+        if (available_len < (additional_len + desc->payload_len_index)) {
+            return 0;
+        }
+
+        len = buf[additional_len + desc->payload_len_index];
+    }
+
+    len += desc->frame_len;
+    len += additional_len;
+
+    return len;
+}
+
 
 int read_responce(uint8_t ** ptr)
 {
-    uint8_t * rb = mbuf;
+    uint8_t * rb = rx_buf;
 
     while (1) {
         int rdlen = read(fd, rb, READ_LEN);
         if (rdlen > 0) {
             rb += rdlen;
 
-            int data_len = rb - mbuf;
+            int data_len = rb - rx_buf;
 
             if (data_len > (BUFFER_SIZE - READ_LEN)) {
                 printf("Error buffer overload\n");
@@ -94,15 +225,23 @@ int read_responce(uint8_t ** ptr)
 
             if (data_len >= RESPONCE_MIN_LEN) {
                 for (unsigned i = 0; i < data_len - RESPONCE_MIN_LEN + 1; i++) {
-                    uint8_t * resp = &mbuf[i];
-                    int len = data_len - i;
+                    uint8_t * resp = &rx_buf[i];
 
-                    if (modbus_crc(resp, len - 2) == u16_from_le_buf8(rb - 2)) {
-                        if (debug) {
-                            print_hb("    <-", mbuf, data_len);
+                    int available_len = data_len - i;
+                    int len = check_cmd_in_rx_buffer(resp, available_len);
+                    if (len) {
+                        if (len <= available_len) {
+                            if (debug) {
+                                print_hb("    <-", rx_buf, data_len);
+                            }
+                            if (modbus_crc(resp, len - 2) == u16_from_le_buf8(&resp[len - 2])) {
+                                *ptr = resp;
+                                return len;
+                            } else {
+                                printf("error: wrong crc\n");
+                                return 0;
+                            }
                         }
-                        *ptr = resp;
-                        return len;
                     }
                 }
             }
@@ -118,28 +257,30 @@ int read_responce(uint8_t ** ptr)
 
 void send_special_cmd(uint8_t cmd, uint16_t len)
 {
-    mbuf[0] = SCPECIAL_ADDRESS;
-    mbuf[1] = 0x60;
-    mbuf[2] = cmd;
-    send_cmd_in_mbuf(len);
+    tx_buf[0] = SCPECIAL_ADDRESS;
+    tx_buf[1] = SCPECIAL_CMD;
+    tx_buf[2] = cmd;
+    send_cmd_in_tx_buf(len);
 }
 
 void send_special_read(uint32_t serial, uint16_t address, uint16_t len)
 {
-    u32_to_be_buf8(&mbuf[3], serial);
-    mbuf[7] = 3;
-    u16_to_be_buf8(&mbuf[8], address);
-    u16_to_be_buf8(&mbuf[10], len);
+    u32_to_be_buf8(&tx_buf[3], serial);
+    tx_buf[7] = 3;
+    u16_to_be_buf8(&tx_buf[8], address);
+    u16_to_be_buf8(&tx_buf[10], len);
     send_special_cmd(8, 12);
 }
 
 void send_change_id_cmd(uint32_t serial, uint8_t new_id)
 {
     uint16_t id16 = new_id;
-    u32_to_be_buf8(&mbuf[3], serial);
-    mbuf[7] = 6;
-    u16_to_be_buf8(&mbuf[8], 128);
-    u16_to_be_buf8(&mbuf[10], id16);
+    u32_to_be_buf8(&tx_buf[3], serial);
+    tx_buf[7] = 6;
+
+    // 128 адрес регистра с slave адресом устройства
+    u16_to_be_buf8(&tx_buf[8], HOLDREG_WB_SLAVE_ID);
+    u16_to_be_buf8(&tx_buf[10], id16);
     send_special_cmd(8, 12);
 }
 
@@ -148,7 +289,7 @@ void send_cmd_scan_init(void)
     if (debug) {
         printf("    send SCAN INIT");
     }
-    send_special_cmd(1, 3);
+    send_special_cmd(CMD_EXT_SCAN_START, 3);
 }
 
 void send_cmd_scan_next(void)
@@ -156,7 +297,7 @@ void send_cmd_scan_next(void)
     if (debug) {
         printf("    send SCAN NEXT");
     }
-    send_special_cmd(2, 3);
+    send_special_cmd(CMD_EXT_SCAN_NEXT, 3);
 }
 
 int parse_special_responnce_str(uint8_t * frame, char * str, int len)
@@ -165,11 +306,11 @@ int parse_special_responnce_str(uint8_t * frame, char * str, int len)
         printf("error: recieved frame have not special address\n");
         return -1;
     }
-    if (frame[1] != 0x60) {
+    if (frame[1] != SCPECIAL_CMD) {
         printf("error: recieved frame have not special cmd\n");
         return -2;
     }
-    if (frame[2] != 9) {
+    if (frame[2] != CMD_EXT_STD_PDU_RESP) {
         printf("error: recieved frame have not pdu sub cmd\n");
         return -3;
     }
@@ -239,11 +380,12 @@ int configure_tty(int baud)
         return -1;
     }
     long nsec = 1000000000 / baud;
-    // overflow avoid
-    nsec *=  12 * (5 + 5);
 
-    frame_delay.tv_sec = 0;
-    frame_delay.tv_nsec = nsec;
+    // 12 бит в одном фрейме
+    nsec *=  12;
+
+    byte_send_time.tv_sec = 0;
+    byte_send_time.tv_nsec = nsec;
 
     return 0;
 }
@@ -262,28 +404,30 @@ void tool_scan(void)
         uint32_t fwver;
     } dev_info_t;
 
-
     int dn = 0;
 
     int scan_init = 1;
 
     while (1) {
-        nanosleep(&frame_delay, NULL);
-
         if (scan_init) {
             send_cmd_scan_init();
             scan_init = 0;
         } else {
+            delay_frame();
             send_cmd_scan_next();
         }
 
         uint8_t * r;
         int len = read_responce(&r);
 
-        if (r[2] == 4) {
+        if (len == 0) {
+            continue;
+        }
+
+        if (r[2] == CMD_EXT_SCAN_END) {
             printf("End SCAN\r\n");
             break;
-        } else if (r[2] == 3) {
+        } else if (r[2] == CMD_EXT_SCAN_RESP) {
             if (len != 10) {
                 printf("ERROR: scan responce len %d", len);
             }
@@ -291,7 +435,7 @@ void tool_scan(void)
             dev_info_t dev_info = {};
 
             dev_info.serial = u32_from_be_buf8(&r[3]);
-            dev_info.id = r[7];
+            dev_info.id = r[PAYLOAD_EXT_OFFSET];
 
             int rpt = 0;
             for (int i = 0; i < dn; i++) {
@@ -302,7 +446,7 @@ void tool_scan(void)
             devices[dn].id = dev_info.id;
             devices[dn].serial = dev_info.serial;
 
-            nanosleep(&frame_delay, NULL);
+            delay_frame();
 
             if (debug) {
                 printf("    read DEVICE MODEL\n");
