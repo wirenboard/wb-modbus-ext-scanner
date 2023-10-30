@@ -328,20 +328,26 @@ void send_change_id_cmd(uint32_t serial, uint8_t new_id)
     send_special_cmd(8, 12);
 }
 
-void send_cmd_scan_init(void)
+void send_cmd_scan_init(uint8_t ext_cmd)
 {
     if (debug) {
         printf("    send SCAN INIT");
     }
-    send_special_cmd(CMD_EXT_SCAN_START, 3);
+    tx_buf[0] = SCPECIAL_ADDRESS;
+    tx_buf[1] = ext_cmd;
+    tx_buf[2] = CMD_EXT_SCAN_START;
+    send_cmd_in_tx_buf(3);
 }
 
-void send_cmd_scan_next(void)
+void send_cmd_scan_next(uint8_t ext_cmd)
 {
     if (debug) {
         printf("    send SCAN NEXT");
     }
-    send_special_cmd(CMD_EXT_SCAN_NEXT, 3);
+    tx_buf[0] = SCPECIAL_ADDRESS;
+    tx_buf[1] = ext_cmd;
+    tx_buf[2] = CMD_EXT_SCAN_NEXT;
+    send_cmd_in_tx_buf(3);
 }
 
 int parse_special_responnce_str(uint8_t * frame, char * str, int len)
@@ -433,7 +439,7 @@ int configure_tty(int baud)
     return 0;
 }
 
-void tool_scan(void)
+void tool_scan(uint8_t ext_cmd)
 {
     struct {
         uint32_t serial;
@@ -453,11 +459,11 @@ void tool_scan(void)
 
     while (1) {
         if (scan_init) {
-            send_cmd_scan_init();
+            send_cmd_scan_init(ext_cmd);
             scan_init = 0;
         } else {
             delay_frame();
-            send_cmd_scan_next();
+            send_cmd_scan_next(ext_cmd);
         }
 
         uint8_t * r;
@@ -643,6 +649,7 @@ void print_help(char* argv0)
             "Options:\n"
             "    -d device      TTY serial device  \n"
             "    -b baud        Baudrate, default 9600\n"
+            "    -L             use 0x60 (deprecated) cmd instead of 0x46 in scan\n"
             "    -s sn          device sn\n"
             "    -i id          slave id\n"
             "    -D             debug mode\n"
@@ -654,6 +661,7 @@ void print_help(char* argv0)
             "    -c ctrl        event control value\n"
             "\n"
             "For scan use:              %s -d device [-b baud] [-D]\n"
+            "For scan some old fw use:  %s -d device [-b baud] -L [-D]\n"
             "For set slave id use:      %s -d device [-b baud] -s sn -i id [-D]\n"
             "For setup event use:       %s -d device [-b baud] -i id -r reg -t type -c ctrl\n"
             "Event request examples:\n"
@@ -674,6 +682,7 @@ int main(int argc, char *argv[])
     int baud = 9600;
     uint64_t sn = 0;
     int id = 0;
+    int legacy_ext_cmd = 0;
 
     // events options
     int confirm_id = 0;     // events confirm slave id
@@ -683,7 +692,7 @@ int main(int argc, char *argv[])
     int ev_t = -1;          // event register type
     int ev_c = -1;          // event ctrl value
 
-    while ((c = getopt(argc, argv, "d:b:s:i:l:r:t:c:e:E:D")) != -1) {
+    while ((c = getopt(argc, argv, "d:b:Ls:i:l:r:t:c:e:E:D")) != -1) {
         switch(c) {
         case 'd':
             printf("Serial port: %s\n", optarg);
@@ -700,6 +709,10 @@ int main(int argc, char *argv[])
 
         case 'b':
             sscanf(optarg, "%d", &baud);
+            break;
+
+        case 'L':
+            legacy_ext_cmd = 1;
             break;
 
         case 's':
@@ -794,7 +807,12 @@ int main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
     } else {
-        tool_scan();
+        // scan function
+        if (legacy_ext_cmd) {
+            tool_scan(SCPECIAL_CMD_LEGACY);
+        } else {
+            tool_scan(SCPECIAL_CMD);
+        }
     }
 
     return EXIT_SUCCESS;
