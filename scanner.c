@@ -299,33 +299,33 @@ int read_responce(uint8_t ** ptr)
     return 0;
 }
 
-void send_special_cmd(uint8_t cmd, uint16_t len)
+void send_special_cmd(uint8_t ext_cmd, uint8_t cmd, uint16_t len)
 {
     tx_buf[0] = SCPECIAL_ADDRESS;
-    tx_buf[1] = SCPECIAL_CMD;
+    tx_buf[1] = ext_cmd;
     tx_buf[2] = cmd;
     send_cmd_in_tx_buf(len);
 }
 
-void send_special_read(uint32_t serial, uint16_t address, uint16_t len)
+void send_special_read(uint8_t ext_cmd, uint32_t serial, uint16_t address, uint16_t len)
 {
     u32_to_be_buf8(&tx_buf[3], serial);
-    tx_buf[7] = 3;
+    tx_buf[7] = 3;          // read multiple holding registers
     u16_to_be_buf8(&tx_buf[8], address);
     u16_to_be_buf8(&tx_buf[10], len);
-    send_special_cmd(8, 12);
+    send_special_cmd(ext_cmd, 8, 12);
 }
 
-void send_change_id_cmd(uint32_t serial, uint8_t new_id)
+void send_change_id_cmd(uint8_t ext_cmd, uint32_t serial, uint8_t new_id)
 {
     uint16_t id16 = new_id;
     u32_to_be_buf8(&tx_buf[3], serial);
-    tx_buf[7] = 6;
+    tx_buf[7] = 6;          // write single holding register
 
     // 128 адрес регистра с slave адресом устройства
     u16_to_be_buf8(&tx_buf[8], HOLDREG_WB_SLAVE_ID);
     u16_to_be_buf8(&tx_buf[10], id16);
-    send_special_cmd(8, 12);
+    send_special_cmd(ext_cmd, 8, 12);
 }
 
 void send_cmd_scan_init(uint8_t ext_cmd)
@@ -333,10 +333,7 @@ void send_cmd_scan_init(uint8_t ext_cmd)
     if (debug) {
         printf("    send SCAN INIT");
     }
-    tx_buf[0] = SCPECIAL_ADDRESS;
-    tx_buf[1] = ext_cmd;
-    tx_buf[2] = CMD_EXT_SCAN_START;
-    send_cmd_in_tx_buf(3);
+    send_special_cmd(ext_cmd, CMD_EXT_SCAN_START, 3);
 }
 
 void send_cmd_scan_next(uint8_t ext_cmd)
@@ -344,10 +341,7 @@ void send_cmd_scan_next(uint8_t ext_cmd)
     if (debug) {
         printf("    send SCAN NEXT");
     }
-    tx_buf[0] = SCPECIAL_ADDRESS;
-    tx_buf[1] = ext_cmd;
-    tx_buf[2] = CMD_EXT_SCAN_NEXT;
-    send_cmd_in_tx_buf(3);
+    send_special_cmd(ext_cmd, CMD_EXT_SCAN_NEXT, 3);
 }
 
 int parse_special_responnce_str(uint8_t * frame, char * str, int len)
@@ -500,7 +494,7 @@ void tool_scan(uint8_t ext_cmd)
             if (debug) {
                 printf("    read DEVICE MODEL\n");
             }
-            send_special_read(dev_info.serial, 200, 20);
+            send_special_read(ext_cmd, dev_info.serial, 200, 20);
             len = read_responce(&r);
             if (len) {
                 parse_special_responnce_str(r, dev_info.model, 20);
@@ -521,13 +515,13 @@ void tool_scan(uint8_t ext_cmd)
     }
 }
 
-void tool_change_id(uint32_t sn, int new_id)
+void tool_change_id(uint8_t ext_cmd, uint32_t sn, int new_id)
 {
     if ((new_id == 0) || (new_id > 247)) {
         printf("\r\n %d bad ID", new_id);
     } else {
         printf("Chande ID for device with serial %12lld [%08X] New ID: %d\n", (uint64_t)sn, sn, new_id);
-        send_change_id_cmd(sn, new_id);
+        send_change_id_cmd(ext_cmd, sn, new_id);
         uint8_t * ptr;
         read_responce(&ptr);
     }
@@ -574,7 +568,7 @@ void tool_event(uint8_t min_slave, uint8_t max_event_len, uint8_t confirm_slave_
     req_frame->event_limit = max_event_len;
     req_frame->confirm_slave_id = confirm_slave_id;
     req_frame->confirm_flag = flag;
-    send_special_cmd(CMD_EXT_EVENTS_REQ, sizeof(ext_modbus_event_resp_cmd_t) - 2);
+    send_special_cmd(SCPECIAL_CMD , CMD_EXT_EVENTS_REQ, sizeof(ext_modbus_event_resp_cmd_t) - 2);
 
     struct ext_modbus_event_resp * resp;
     fflush(stdout);
@@ -682,7 +676,7 @@ int main(int argc, char *argv[])
     int baud = 9600;
     uint64_t sn = 0;
     int id = 0;
-    int legacy_ext_cmd = 0;
+    uint8_t ext_cmd = SCPECIAL_CMD;
 
     // events options
     int confirm_id = 0;     // events confirm slave id
@@ -712,7 +706,7 @@ int main(int argc, char *argv[])
             break;
 
         case 'L':
-            legacy_ext_cmd = 1;
+            ext_cmd = SCPECIAL_CMD_LEGACY;
             break;
 
         case 's':
@@ -801,18 +795,14 @@ int main(int argc, char *argv[])
 
     if ((sn != 0) || (id != 0)) {
         if ((sn != 0) && (id != 0)) {
-            tool_change_id(sn, id);
+            tool_change_id(ext_cmd, sn, id);
         } else {
             printf("both sn and new id necessery for change id\n");
             return EXIT_FAILURE;
         }
     } else {
         // scan function
-        if (legacy_ext_cmd) {
-            tool_scan(SCPECIAL_CMD_LEGACY);
-        } else {
-            tool_scan(SCPECIAL_CMD);
-        }
+        tool_scan(ext_cmd);
     }
 
     return EXIT_SUCCESS;
