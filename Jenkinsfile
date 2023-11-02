@@ -1,1 +1,1 @@
-buildDebSbuild()
+buildDebSbuild defaultRunLintian: true
