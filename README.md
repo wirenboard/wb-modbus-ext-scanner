@@ -20,6 +20,7 @@ Usage: ./wb-modbus-scanner -d device [-b baud] [-s sn] [-i id] [-D]
 Options:
     -d device      TTY serial device
     -b baud        Baudrate, default 9600
+    -L             use 0x60 (deprecated) cmd instead of 0x46 in scan
     -s sn          device sn
     -i id          slave id
     -D             debug mode
@@ -31,6 +32,7 @@ Options:
     -c ctrl        event control value
 
 For scan use:              ./wb-modbus-scanner -d device [-b baud] [-D]
+For scan some old fw use:  ./wb-modbus-scanner -d device [-b baud] -L [-D]
 For set slave id use:      ./wb-modbus-scanner -d device [-b baud] -s sn -i id [-D]
 For setup event use:       ./wb-modbus-scanner -d device [-b baud] -i id -r reg -t type -c ctrl
 Event request examples:
@@ -53,7 +55,9 @@ Found device ( 2) with serial   4267937719 [FE638FB7]  modbus id:   1  model: WB
 End SCAN
 ```
 
-Утилита обнаружила 2 устройства, приэтом у них повторяются адреса на шине modbus, очем свидетельствует надпись MODBUS ID REPEAT
+Утилита обнаружила 2 устройства, при этом у них повторяются адреса на шине modbus, очем свидетельствует надпись MODBUS ID REPEAT
+
+Если не все устройства найдены попробуйте запустить утилиту с флагом -L
 
 ## Изменения адреса на шине
 
