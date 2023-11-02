@@ -2,7 +2,7 @@ wb-modbus-ext-scanner (1.2.1) stable; urgency=medium
 
   * Add -L key for scan old fw devices with depricated cmd 0x60
 
- -- nikita <n.kulikov@wirenboard.ru>  Mon, 30 Oct 2023 17:25:57 +0300
+ -- Nikita Kulikov <n.kulikov@wirenboard.ru>  Mon, 30 Oct 2023 17:25:57 +0300
 
 wb-modbus-ext-scanner (1.2.0) stable; urgency=medium
 
