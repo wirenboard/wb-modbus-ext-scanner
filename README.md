@@ -1,16 +1,16 @@
 # Wirenboard Modbus scanner tool
 
-Репозиторий содержит описание расширения протокола Modbus Wiren Board и пример реализции утилиты для работы с ним.
+The repository contains a description of the Wiren Board Modbus protocol extension and an example implementation of a utility for working with it.
 
-## Установка
+## Installation
 
 `apt update && apt install wb-modbus-ext-scanner`
 
-**!!! Перед использованием убедитесь что последовательный порт не используется другим приложением. Остановите сервис wb-mqtt-serial**
+**!!! Before use, make sure that the serial port is not being used by another application. Stop the wb-mqtt-serial** service
 
-## Параметры утилиты
+## Utility parameters
 
-Для вывода помощи вызовите утилиту без аргументов
+To display help, call the utility without arguments
 
 ```
 # wb-modbus-scanner
@@ -18,106 +18,106 @@ Wirenboard modbus extension tool. version: 1.2.0
 Usage: ./wb-modbus-scanner -d device [-b baud] [-s sn] [-i id] [-D]
 
 Options:
-    -d device      TTY serial device
-    -b baud        Baudrate, default 9600
-    -L             use 0x60 (deprecated) cmd instead of 0x46 in scan
-    -s sn          device sn
-    -i id          slave id
-    -D             debug mode
-    -l len         max len of event data field
-    -e id          event request with confirm 0 for slave id
-    -E id          event request with confirm 1 for slave id
-    -r reg         event control reg
-    -t type        event control type
-    -c ctrl        event control value
+     -d device TTY serial device
+     -b baud Baudrate, default 9600
+     -L use 0x60 (deprecated) cmd instead of 0x46 in scan
+     -s device sn
+     -i id slave id
+     -D debug mode
+     -l len max len of event data field
+     -e id event request with confirm 0 for slave id
+     -E id event request with confirm 1 for slave id
+     -r reg event control reg
+     -t type event control type
+     -c ctrl event control value
 
-For scan use:              ./wb-modbus-scanner -d device [-b baud] [-D]
-For scan some old fw use:  ./wb-modbus-scanner -d device [-b baud] -L [-D]
-For set slave id use:      ./wb-modbus-scanner -d device [-b baud] -s sn -i id [-D]
-For setup event use:       ./wb-modbus-scanner -d device [-b baud] -i id -r reg -t type -c ctrl
+For scan use: ./wb-modbus-scanner -d device [-b baud] [-D]
+For scan some old fw use: ./wb-modbus-scanner -d device [-b baud] -L [-D]
+For set slave id use: ./wb-modbus-scanner -d device [-b baud] -s sn -i id [-D]
+For setup event use: ./wb-modbus-scanner -d device [-b baud] -i id -r reg -t type -c ctrl
 Event request examples:
-         ./wb-modbus-scanner -d device [-b baud] -e 0               (request + nothing to confirm)
-         ./wb-modbus-scanner -d device [-b baud] -e 4               (request + confirm events from slave 4 flag 0)
-         ./wb-modbus-scanner -d device [-b baud] -E 6               (request + confirm events from slave 6 flag 1)
+          ./wb-modbus-scanner -d device [-b baud] -e 0 (request + nothing to confirm)
+          ./wb-modbus-scanner -d device [-b baud] -e 4 (request + confirm events from slave 4 flag 0)
+          ./wb-modbus-scanner -d device [-b baud] -E 6 (request + confirm events from slave 6 flag 1)
 ```
 
-## Сканирование устройства на шине
+## Scanning a device on the bus
 
-Пример вызова:
+Example call:
 
 ```
 # wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200
 Serial port: /dev/ttyRS485-1
 Use baud 115200
 Send SCAN INIT cmd
-Found device ( 1) with serial   4262588889 [FE11F1D9]  modbus id:   1  model: MRPS6
-Found device ( 2) with serial   4267937719 [FE638FB7]  modbus id:   1  model: WBMR6C                  [MODBUS ID REPEAT]
+Found device ( 1) with serial 4262588889 [FE11F1D9] modbus id: 1 model: MRPS6
+Found device ( 2) with serial 4267937719 [FE638FB7] modbus id: 1 model: WBMR6C [MODBUS ID REPEAT]
 End SCAN
 ```
 
-Утилита обнаружила 2 устройства, при этом у них повторяются адреса на шине modbus, очем свидетельствует надпись MODBUS ID REPEAT
+The utility has detected 2 devices, and their addresses on the modbus bus are repeated, as evidenced by the inscription MODBUS ID REPEAT
 
-Если не все устройства найдены попробуйте запустить утилиту с флагом -L
+If not all devices are found, try running the utility with the -L flag
 
-## Изменения адреса на шине
+## Bus address changes
 
-Пример вызова:
+Example call:
 
 ```
 # wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200 -s 4267937719 -i 3
 Serial port: /dev/ttyRS485-1
 Use baud 115200
-Chande ID for device with serial   4267937719 [FE638FB7] New ID: 3
+Chande ID for device with serial 4267937719 [FE638FB7] New ID: 3
 ```
 
-## Включение отправки событий modbus регистра
+## Enable sending modbus register events
 
-Пример вызова:
+Example call:
 
 ```
 # wb-modbus-scanner -d /dev/ttyRS485-2 -D -i 62 -r0 -t 1 -c 1
 Serial port: /dev/ttyRS485-2
 Use baud 9600
-    -> :  3E 46 18 05 01 00 00 01 01 F3 4F
-    <- :  3E 46 18 01 01 58 DA
+     -> : 3E 46 18 05 01 00 00 01 01 F3 4F
+     <- : 3E 46 18 01 01 58 DA
 
 ```
 
-Здесь мы устройству с адресом 62 включили передачу события при изменении coil (type 1) регистра 0 с приоритетом 1
+Here we enabled the device with address 62 to transmit an event when coil (type 1) of register 0 changes with priority 1
 
-## Запрос событий
+## Query events
 
-Пример вызова:
+Example call:
 
 ```
 # wb-modbus-scanner -d /dev/ttyRS485-2 -e 0
 Serial port: /dev/ttyRS485-2
 Use baud 9600
-    send EVENT GET    -> :  FD 46 10 00 FF 00 00 C8 9A
-    <- :  FF FF FF FF FF 3E 46 11 00 03 10 01 02 00 03 00 02 04 00 23 01 00 01 01 00 03 00 4F CF
-    device:  62 - events:   3   flag: 0   event data len: 016   frame len: 024
-Event type:   2   id:     3 [0003]   payload:          0   device 62
-Event type:   4   id:    35 [0023]   payload:          1   device 62
-Event type:   1   id:     3 [0003]   payload:          0   device 62
+     send EVENT GET -> : FD 46 10 00 FF 00 00 C8 9A
+     <- : FF FF FF FF FF 3E 46 11 00 03 10 01 02 00 03 00 02 04 00 23 01 00 01 01 00 03 00 4F CF
+     device: 62 - events: 3 flag: 0 event data len: 016 frame len: 024
+Event type: 2 id: 3 [0003] payload: 0 device 62
+Event type: 4 id: 35 [0023] payload: 1 device 62
+Event type: 1 id: 3 [0003] payload: 0 device 62
 ```
 
-Здесь был отправлен запрос без подтверждения предыдущих событий
+A request was sent here without confirmation of previous events
 
-в ответ устройство с адресом 62 уведомило о трех событиях
+in response, the device with address 62 notified three events
 
-discrete (тип 2) регистр 3 изменил значение, новое значение 0
-input (тип 4) регистр 35 изменил значение, новое значение 1
-coil (тип 1) регистр 3 изменил значение, новое значение 0
+discrete (type 2) register 3 changed value, new value 0
+input (type 4) register 35 changed value, new value 1
+coil (type 1) register 3 changed value, new value 0
 
-Также видим что флаг подтверждения имеет значение 0
+We also see that the confirmation flag has the value 0
 
-Чтобы подтвердить события от данного устройства, и запросить следующие, нужно использовать ключ -e c адресом 62
+To confirm events from this device and request the next ones, you need to use the -e switch with address 62
 
 ```
 # wb-modbus-scanner -d /dev/ttyRS485-2 -e 62 -D
 Serial port: /dev/ttyRS485-2
 Use baud 9600
-    send EVENT GET    -> :  FD 46 10 00 FF 3E 00 D8 FA
-    <- :  FF FF FF FD 46 12 52 5D
+     send EVENT GET -> : FD 46 10 00 FF 3E 00 D8 FA
+     <- : FF FF FF FD 46 12 52 5D
 NO EVENTS
 ```
