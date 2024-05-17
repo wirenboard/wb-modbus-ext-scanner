@@ -634,14 +634,14 @@ void tool_event_ctrl(int id, uint8_t type, uint16_t addr, uint8_t val)
     return;
 }
 
-void print_help(char* argv0)
+void print_help(const char* argv0)
 {
         printf(
             "Wirenboard modbus extension tool. version: " VERSION "\n"
             "Usage: %s -d device [-b baud] [-s sn] [-i id] [-D]\n"
             "\n"
             "Options:\n"
-            "    -d device      TTY serial device  \n"
+            "    -d device      TTY serial device\n"
             "    -b baud        Baudrate, default 9600\n"
             "    -L             use 0x60 (deprecated) cmd instead of 0x46 in scan\n"
             "    -s sn          device sn\n"
@@ -653,6 +653,7 @@ void print_help(char* argv0)
             "    -r reg         event control reg\n"
             "    -t type        event control type\n"
             "    -c ctrl        event control value\n"
+            "    -h             show help\n"
             "\n"
             "For scan use:              %s -d device [-b baud] [-D]\n"
             "For scan some old fw use:  %s -d device [-b baud] -L [-D]\n"
@@ -662,7 +663,7 @@ void print_help(char* argv0)
             "         %s -d device [-b baud] -e 0               (request + nothing to confirm)\n"
             "         %s -d device [-b baud] -e 4               (request + confirm events from slave 4 flag 0)\n"
             "         %s -d device [-b baud] -E 6               (request + confirm events from slave 6 flag 1)\n"
-            , argv0, argv0, argv0, argv0, argv0, argv0, argv0);
+            , argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0);
 }
 
 int main(int argc, char *argv[])
@@ -686,7 +687,7 @@ int main(int argc, char *argv[])
     int ev_t = -1;          // event register type
     int ev_c = -1;          // event ctrl value
 
-    while ((c = getopt(argc, argv, "d:b:Ls:i:l:r:t:c:e:E:D")) != -1) {
+    while ((c = getopt(argc, argv, "d:b:Ls:i:l:r:t:c:e:E:Dh")) != -1) {
         switch(c) {
         case 'd':
             printf("Serial port: %s\n", optarg);

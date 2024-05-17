@@ -12,7 +12,7 @@
 
 Для вывода помощи вызовите утилиту без аргументов
 
-```
+```sh
 # wb-modbus-scanner
 Wirenboard modbus extension tool. version: 1.2.0
 Usage: ./wb-modbus-scanner -d device [-b baud] [-s sn] [-i id] [-D]
@@ -45,7 +45,7 @@ Event request examples:
 
 Пример вызова:
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200
 Serial port: /dev/ttyRS485-1
 Use baud 115200
@@ -63,7 +63,7 @@ End SCAN
 
 Пример вызова:
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200 -s 4267937719 -i 3
 Serial port: /dev/ttyRS485-1
 Using baud 115200
@@ -74,13 +74,12 @@ Change ID for device with serial   4267937719 [FE638FB7] New ID: 3
 
 Пример вызова:
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-2 -D -i 62 -r0 -t 1 -c 1
 Serial port: /dev/ttyRS485-2
 Use baud 9600
     -> :  3E 46 18 05 01 00 00 01 01 F3 4F
     <- :  3E 46 18 01 01 58 DA
-
 ```
 
 Здесь мы устройству с адресом 62 включили передачу события при изменении coil (type 1) регистра 0 с приоритетом 1
@@ -89,7 +88,7 @@ Use baud 9600
 
 Пример вызова:
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-2 -e 0
 Serial port: /dev/ttyRS485-2
 Using baud 9600
@@ -113,7 +112,7 @@ coil (тип 1) регистр 3 изменил значение, новое з�
 
 Чтобы подтвердить события от данного устройства, и запросить следующие, нужно использовать ключ -e c адресом 62
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-2 -e 62 -D
 Serial port: /dev/ttyRS485-2
 Use baud 9600
