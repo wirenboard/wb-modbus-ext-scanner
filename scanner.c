@@ -17,9 +17,9 @@
 #define READ_LEN                    16
 #define RESPONCE_MIN_LEN            4
 
-#define SCPECIAL_ADDRESS            0xFD
-#define SCPECIAL_CMD                0x46
-#define SCPECIAL_CMD_LEGACY         0x60
+#define SPECIAL_ADDRESS             0xFD
+#define SPECIAL_CMD                 0x46
+#define SPECIAL_CMD_LEGACY          0x60
 
 #define CMD_EXT_SCAN_START          0x01
 #define CMD_EXT_SCAN_NEXT           0x02
@@ -202,7 +202,7 @@ const cmd_len_desc_t * get_cmd_len_desc(uint8_t cmd, int is_ext)
 int check_cmd_in_rx_buffer(uint8_t * buf, int available_len)
 {
     // вся утилита работает только с расширенными ответами
-    if ((buf[1] != SCPECIAL_CMD) && (buf[1] != SCPECIAL_CMD_LEGACY)) {
+    if ((buf[1] != SPECIAL_CMD) && (buf[1] != SPECIAL_CMD_LEGACY)) {
         return 0;
     }
 
@@ -222,7 +222,7 @@ int check_cmd_in_rx_buffer(uint8_t * buf, int available_len)
             return 0;
         }
 
-        // команда длинее на 6 байт. такак как PDU начинаектся с 7го байта но не имеет байта с адресом устройства как стандартный пакет
+        // команда длиннее на 6 байт. так как PDU начинается с 7го байта, но не имеет байта с адресом устройства как стандартный пакет
         additional_len = 6;
         is_ext = 0;
         cmd = buf[PAYLOAD_EXT_OFFSET];
@@ -301,7 +301,7 @@ int read_responce(uint8_t ** ptr)
 
 void send_special_cmd(uint8_t ext_cmd, uint8_t cmd, uint16_t len)
 {
-    tx_buf[0] = SCPECIAL_ADDRESS;
+    tx_buf[0] = SPECIAL_ADDRESS;
     tx_buf[1] = ext_cmd;
     tx_buf[2] = cmd;
     send_cmd_in_tx_buf(len);
@@ -344,17 +344,17 @@ void send_cmd_scan_next(uint8_t ext_cmd)
     send_special_cmd(ext_cmd, CMD_EXT_SCAN_NEXT, 3);
 }
 
-int parse_special_responnce_str(uint8_t * frame, char * str, int len)
+int parse_special_responce_str(uint8_t * frame, char * str, int len)
 {
-    if (frame[0] != SCPECIAL_ADDRESS) {
-        printf("error: recieved frame have not special address\n");
+    if (frame[0] != SPECIAL_ADDRESS) {
+        printf("error: received frame have not special address\n");
         return -1;
     }
 
     // вызов check_cmd_in_rx_buffer при приеме уже проверил что команда или 0x60 или 0x46
 
     if (frame[2] != CMD_EXT_STD_PDU_RESP) {
-        printf("error: recieved frame have not pdu sub cmd\n");
+        printf("error: received frame have not pdu sub cmd\n");
         return -3;
     }
 
@@ -397,7 +397,7 @@ int configure_tty(int baud)
     speed_t baud_setting = B1152000;
 
     if (check_baud_get_setting(baud, &baud_setting)) {
-        printf("Use baud %d\n", baud);
+        printf("Using baud %d\n", baud);
     } else {
         printf("Baudrate %d is not supported!\n", baud);
         return -1;
@@ -497,7 +497,7 @@ void tool_scan(uint8_t ext_cmd)
             send_special_read(ext_cmd, dev_info.serial, 200, 20);
             len = read_responce(&r);
             if (len) {
-                parse_special_responnce_str(r, dev_info.model, 20);
+                parse_special_responce_str(r, dev_info.model, 20);
             }
 
             printf ("Found device (%2d) with serial %12lld [%08X]  modbus id: %3d  model: %-20s", dn + 1, (uint64_t)dev_info.serial, dev_info.serial, dev_info.id, dev_info.model);
@@ -520,7 +520,7 @@ void tool_change_id(uint8_t ext_cmd, uint32_t sn, int new_id)
     if ((new_id == 0) || (new_id > 247)) {
         printf("\r\n %d bad ID", new_id);
     } else {
-        printf("Chande ID for device with serial %12lld [%08X] New ID: %d\n", (uint64_t)sn, sn, new_id);
+        printf("Change ID for device with serial %12lld [%08X] New ID: %d\n", (uint64_t)sn, sn, new_id);
         send_change_id_cmd(ext_cmd, sn, new_id);
         uint8_t * ptr;
         read_responce(&ptr);
@@ -568,7 +568,7 @@ void tool_event(uint8_t min_slave, uint8_t max_event_len, uint8_t confirm_slave_
     req_frame->event_limit = max_event_len;
     req_frame->confirm_slave_id = confirm_slave_id;
     req_frame->confirm_flag = flag;
-    send_special_cmd(SCPECIAL_CMD , CMD_EXT_EVENTS_REQ, sizeof(ext_modbus_event_resp_cmd_t) - 2);
+    send_special_cmd(SPECIAL_CMD , CMD_EXT_EVENTS_REQ, sizeof(ext_modbus_event_resp_cmd_t) - 2);
 
     struct ext_modbus_event_resp * resp;
     fflush(stdout);
@@ -616,7 +616,7 @@ void tool_event_ctrl(int id, uint8_t type, uint16_t addr, uint8_t val)
     } event_ctrl_t;
 
     tx_buf[0] = id;
-    tx_buf[1] = SCPECIAL_CMD;
+    tx_buf[1] = SPECIAL_CMD;
     tx_buf[2] = CMD_EXT_EVENTS_CTRL;
     tx_buf[3] = sizeof(event_ctrl_t);      // fixed only one reg config
 
@@ -676,7 +676,7 @@ int main(int argc, char *argv[])
     int baud = 9600;
     uint64_t sn = 0;
     int id = 0;
-    uint8_t ext_cmd = SCPECIAL_CMD;
+    uint8_t ext_cmd = SPECIAL_CMD;
 
     // events options
     int confirm_id = 0;     // events confirm slave id
@@ -706,7 +706,7 @@ int main(int argc, char *argv[])
             break;
 
         case 'L':
-            ext_cmd = SCPECIAL_CMD_LEGACY;
+            ext_cmd = SPECIAL_CMD_LEGACY;
             break;
 
         case 's':
@@ -777,7 +777,7 @@ int main(int argc, char *argv[])
             return 1;
         }
         if (ev_t != 15 && ((ev_t < 1) || (ev_t > 4))) {
-            // support types for standart regtypes and 15 as system type
+            // support types for standard regtypes and 15 as system type
             printf("WRONG type\n");
             return 1;
         }
@@ -797,7 +797,7 @@ int main(int argc, char *argv[])
         if ((sn != 0) && (id != 0)) {
             tool_change_id(ext_cmd, sn, id);
         } else {
-            printf("both sn and new id necessery for change id\n");
+            printf("both sn and new id are necessary to change id\n");
             return EXIT_FAILURE;
         }
     } else {
