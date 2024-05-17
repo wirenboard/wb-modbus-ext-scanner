@@ -1,6 +1,6 @@
 # Wirenboard Modbus scanner tool
 
-Репозиторий содержит описание расширения протокола Modbus Wiren Board и пример реализции утилиты для работы с ним.
+Репозиторий содержит описание расширения протокола Modbus Wiren Board и пример реализации утилиты для работы с ним.
 
 ## Установка
 
@@ -55,7 +55,7 @@ Found device ( 2) with serial   4267937719 [FE638FB7]  modbus id:   1  model: WB
 End SCAN
 ```
 
-Утилита обнаружила 2 устройства, при этом у них повторяются адреса на шине modbus, очем свидетельствует надпись MODBUS ID REPEAT
+Утилита обнаружила 2 устройства, при этом у них повторяются адреса на шине modbus, о чём свидетельствует надпись MODBUS ID REPEAT
 
 Если не все устройства найдены попробуйте запустить утилиту с флагом -L
 
@@ -66,8 +66,8 @@ End SCAN
 ```
 # wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200 -s 4267937719 -i 3
 Serial port: /dev/ttyRS485-1
-Use baud 115200
-Chande ID for device with serial   4267937719 [FE638FB7] New ID: 3
+Using baud 115200
+Change ID for device with serial   4267937719 [FE638FB7] New ID: 3
 ```
 
 ## Включение отправки событий modbus регистра
@@ -92,7 +92,7 @@ Use baud 9600
 ```
 # wb-modbus-scanner -d /dev/ttyRS485-2 -e 0
 Serial port: /dev/ttyRS485-2
-Use baud 9600
+Using baud 9600
     send EVENT GET    -> :  FD 46 10 00 FF 00 00 C8 9A
     <- :  FF FF FF FF FF 3E 46 11 00 03 10 01 02 00 03 00 02 04 00 23 01 00 01 01 00 03 00 4F CF
     device:  62 - events:   3   flag: 0   event data len: 016   frame len: 024
