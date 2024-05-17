@@ -2,7 +2,7 @@ wb-modbus-ext-scanner (1.2.4) stable; urgency=medium
 
   * Fix typos and grammar
 
- -- Radmir Khakimov <radmir.khakimov@wirenboard.com>  Fri, 17 May 2024 23:15:00 +0400
+ -- Radmir Khakimov <radmir.khakimov@wirenboard.com>  Fri, 18 May 2024 00:15:00 +0500
 
 wb-modbus-ext-scanner (1.2.3) stable; urgency=medium
 
