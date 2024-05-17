@@ -797,7 +797,7 @@ int main(int argc, char *argv[])
         if ((sn != 0) && (id != 0)) {
             tool_change_id(ext_cmd, sn, id);
         } else {
-            printf("both sn and new id necessary for change id\n");
+            printf("both sn and new id are necessary to change id\n");
             return EXIT_FAILURE;
         }
     } else {
