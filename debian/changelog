@@ -1,3 +1,9 @@
+wb-modbus-ext-scanner (1.2.5) stable; urgency=medium
+
+  * Fix crash on -h
+
+ -- Nikolay Korotkiy <nikolay.korotkiy@wirenboard.com>  Mon, 27 May 2024 11:15:00 +0400
+
 wb-modbus-ext-scanner (1.2.4) stable; urgency=medium
 
   * Fix typos and grammar
