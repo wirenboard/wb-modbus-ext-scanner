@@ -426,8 +426,6 @@ int configure_tty(int baud, char parity)
         return -1;
     }
 
-<<<<<<< HEAD
-=======
     tty.c_iflag = 0;
     tty.c_oflag = 0;
     tty.c_cflag = 0x1CB2;
@@ -450,7 +448,6 @@ int configure_tty(int baud, char parity)
         printf("Error from tcsetattr: %s\n", strerror(errno));
         return -1;
     }
->>>>>>> 9a94107 (add parity to scanner)
     long nsec = 1000000000 / baud;
 
     // 12 бит в одном фрейме
