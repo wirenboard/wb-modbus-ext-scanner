@@ -392,7 +392,26 @@ int check_baud_get_setting(int param)
     return valueIsIn;
 }
 
-int configure_tty(int baud)
+int check_parity_set_setting(char parity, tcflag_t * c_cflag)
+{
+    if ((parity == 'n') || (parity == 'N')) {
+        *c_cflag &= ~PARENB;
+        return 1;
+    }
+    if ((parity == 'e') || (parity == 'E')) {
+        *c_cflag |= PARENB;
+        *c_cflag &= ~PARODD;
+        return 1;
+    }
+    if ((parity == 'o') || (parity == 'O')) {
+        *c_cflag |= PARENB;
+        *c_cflag |= PARODD;
+        return 1;
+    }
+    return 0;
+}
+
+int configure_tty(int baud, char parity)
 {
     if (check_baud_get_setting(baud)) {
         printf("Using baud %d\n", baud);
@@ -407,6 +426,31 @@ int configure_tty(int baud)
         return -1;
     }
 
+<<<<<<< HEAD
+=======
+    tty.c_iflag = 0;
+    tty.c_oflag = 0;
+    tty.c_cflag = 0x1CB2;
+    tty.c_lflag = 0;
+
+
+    if (check_parity_set_setting(parity, &tty.c_cflag)) {
+        if (debug) {
+            printf("Using parity %c\n", parity);
+        }
+    } else {
+        printf("Parity %c is not supported!\n", parity);
+        return -1;
+    };
+
+    cfsetospeed(&tty,(speed_t)baud_setting);
+    cfsetispeed(&tty,(speed_t)baud_setting);
+
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+        printf("Error from tcsetattr: %s\n", strerror(errno));
+        return -1;
+    }
+>>>>>>> 9a94107 (add parity to scanner)
     long nsec = 1000000000 / baud;
 
     // 12 бит в одном фрейме
@@ -638,6 +682,7 @@ void print_help(const char* argv0)
             "Options:\n"
             "    -d device      TTY serial device\n"
             "    -b baud        Baudrate, default 9600\n"
+            "    -p parity      Parity, can be n|e|o, default n\n"
             "    -L             use 0x60 (deprecated) cmd instead of 0x46 in scan\n"
             "    -s sn          device sn\n"
             "    -i id          slave id\n"
@@ -670,6 +715,7 @@ int main(int argc, char *argv[])
 
     int c;
     int baud = 9600;
+    char parity = 'n';
     uint64_t sn = 0;
     int id = 0;
     uint8_t ext_cmd = SPECIAL_CMD;
@@ -682,7 +728,7 @@ int main(int argc, char *argv[])
     int ev_t = -1;          // event register type
     int ev_c = -1;          // event ctrl value
 
-    while ((c = getopt(argc, argv, "d:b:Ls:i:l:r:t:c:e:E:Dh")) != -1) {
+    while ((c = getopt(argc, argv, "d:b:Ls:i:l:r:t:c:e:p:E:Dh")) != -1) {
         switch(c) {
         case 'd':
             printf("Serial port: %s\n", optarg);
@@ -704,6 +750,10 @@ int main(int argc, char *argv[])
 
         case 'b':
             sscanf(optarg, "%d", &baud);
+            break;
+
+        case 'p':
+            sscanf(optarg, "%c", &parity);
             break;
 
         case 'L':
@@ -761,7 +811,7 @@ int main(int argc, char *argv[])
         return EXIT_INVALIDARGUMENT;
     }
 
-    if (configure_tty(baud) != 0) {
+    if (configure_tty(baud, parity) != 0) {
         return EXIT_FAILURE;
     }
 
