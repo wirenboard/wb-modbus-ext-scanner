@@ -1076,8 +1076,6 @@ FD 46 09 FE 40 00 AC 06 00 80 00 C8 8D F0
 - 0x00 0x80 0x00 0xC8 — response body: wrote the number 200 to register 128;
     
 - 0x8D 0xF0 - checksum.
-
--
     
 
 Thus, using the 0x08 standard request emulation function, we can read and write any device registers by accessing it by serial number.
