@@ -172,7 +172,7 @@ Example:
 
 ## How arbitration works
 
-Arbitration is a way for devices to decide for themselves who will respond to a request, and also to understand whether there are still people willing to respond. Arbitration occurs based on a value unique for each device (for example, serial number or `slave_id`, depending on the command). The principle is similar to arbitration in the CAN bus. Each device transmits one bit of its unique value in order, starting with MSB. When a device transmitting a recessive bit (1) detects a dominant bit (0) on the bus, it loses arbitration. By the end of the transmission of the unique value, there is only one device left that has won the arbitration.
+Arbitration is a way for devices to decide for themselves who will respond to a request, and also to understand whether there are still people willing to respond. Arbitration occurs based on a value unique for each device (for example, serial number or `server_id`, depending on the command). The principle is similar to arbitration in the CAN bus. Each device transmits one bit of its unique value in order, starting with MSB. When a device transmitting a recessive bit (1) detects a dominant bit (0) on the bus, it loses arbitration. By the end of the transmission of the unique value, there is only one device left that has won the arbitration.
 
 Arbitration bits are transmitted one at a time into the **arbitration window** (time interval). The dominant bit is transmitted as sending the value **0xFF** using normal USART transmission and hardware control of the bus driver. Recessive - nothing is transmitted during the window interval, there is silence on the bus, the transceiver does not turn on. In this way, we bypass the hardware limitations of RS485 in which it is impossible to simultaneously transmit different states. The receiver circuitry is standard. It can be disabled during transmission; this does not affect the operation of the protocol in any way.
 
@@ -216,15 +216,15 @@ The following functions are provided for event polling: event query, event trans
 - (1 byte) `0x10` subcommand - request events from devices
 - (1 byte) minimum server id of the device from which to start responding
 - (1 byte) the maximum length of the data field with events in the packet that the client expects; according to the standard, the length of the entire packet should not exceed 256 bytes.
-- (1 byte) `slave_id` of the device from which the previous event packet was received
+- (1 byte) `server_id` of the device from which the previous event packet was received
 - (1 byte) flag of the previous received packet to confirm reception (see below).
 - (2 bytes) checksum
 
 If the specified maximum length of the data field does not fit a single event, the response will come without a payload (list of events), from it it will be possible to find out only the number of new events.
 
-A flag must be inserted into this request to confirm the receipt from the previous received packet for this `slave_id`, otherwise the events will not be reset.
+A flag must be inserted into this request to confirm the receipt from the previous received packet for this `server_id`, otherwise the events will not be reset.
 
-An example without a `slave_id` limit with an event field length of 100 bytes. The previous event packet was received from device 0x0A with bit 1:
+An example without a `server_id` limit with an event field length of 100 bytes. The previous event packet was received from device 0x0A with bit 1:
 
 ```
 -> FD 46 10 00 64 0A 01 XX XX
@@ -232,7 +232,7 @@ An example without a `slave_id` limit with an event field length of 100 bytes. T
 
 ### Event transfer function - 0x11
 
-- (1 byte) `slave_id` device
+- (1 byte) `server_id` device
 - (1 byte) `0x46` command for working with extended functions
 - (1 byte) `0x11` subcommand - transmission of events from the device
 - (1 byte) flag of this packet to confirm receipt (see below)
@@ -258,7 +258,7 @@ Example: a device with address 5 responds with an event about a change in input 
 
 ### Response function if there are no events - 0x12
 
-This packet is sent by the device that wins the arbitration (lowest priority token + `slave_id`).
+This packet is sent by the device that wins the arbitration (lowest priority token + `server_id`).
 
 - (1 byte) `0xFD` broadcast address
 - (1 byte) `0x46` command for working with extended functions
@@ -281,13 +281,13 @@ The client can then repeat the cycle and request events again.
 
 Confirmation of receipt of events by the client is done through the parameters in the following request, in order to save time when polling, see "Confirmation of event receipt"
 
-If a device is transmitting too many events and preventing others from transmitting events, the client can specify a server id greater than the device's in the request packet to allow that device to pass (along with all others whose `slave_id` is less than the specified one).
+If a device is transmitting too many events and preventing others from transmitting events, the client can specify a server id greater than the device's in the request packet to allow that device to pass (along with all others whose `server_id` is less than the specified one).
 
 ### Arbitration in events
 
-For arbitration when polling events, the concatenation of the packet priority marker (_not to be confused with the event priority_) (4 bits) and the device `slave_id` (8 bits) is used.
+For arbitration when polling events, the concatenation of the packet priority marker (_not to be confused with the event priority_) (4 bits) and the device `server_id` (8 bits) is used.
 
-> It is better to use `slave_id` instead of the device serial number, because arbitration takes 4 times less time, and at the time of setting up event polling, unique `slave_id` values are already expected for all devices.
+> It is better to use `server_id` instead of the device serial number, because arbitration takes 4 times less time, and at the time of setting up event polling, unique `server_id` values are already expected for all devices.
 
 A priority marker at the beginning allows devices with higher priority events to win arbitration earlier, thereby reducing latency for those events. Also, the lowest priority token (`0xF`) is used by devices when there are no new events, which allows one of the devices to answer for all that there are no events (command `0x12`).
 
@@ -295,13 +295,13 @@ There are currently two event priorities available (`HIGH` and `LOW`).
 
 ### Timeout waiting for response in events
 
-An event polling implementation can use a standard timeout formula where 12 arbitration bits are expected (4 priority marker bits and 8 `slave_id` bits). In practice, you can use a hack that allows you to reduce this time.
+An event polling implementation can use a standard timeout formula where 12 arbitration bits are expected (4 priority marker bits and 8 `server_id` bits). In practice, you can use a hack that allows you to reduce this time.
 
 Let us recall that in arbitration bit 0 is dominant (read: higher priority). The recessive bit (1) is not actually sent to the bus during arbitration.
 
-In fact, the response timeout is the time from sending the request until the first character is received on the bus, which can be either the dominant arbitration bit or the start of the message. In `slave_id` arbitration, the most significant bits (MSB) will appear first.
+In fact, the response timeout is the time from sending the request until the first character is received on the bus, which can be either the dominant arbitration bit or the start of the message. In `server_id` arbitration, the most significant bits (MSB) will appear first.
 
-`slave_id` in Modbus is a value from 1 to 247.
+`server_id` in Modbus is a value from 1 to 247.
 
 - for values from 1 to 127, the binary record in 8 bits begins with `0` => we will receive the first character on the bus in the fifth arbitration window (the first 4 bits are behind the priority marker);
 - for values from 128 to 191, the binary entry begins with `10` => the first character - into the sixth arbitration window;
@@ -320,7 +320,7 @@ Delivery guarantee is implemented using a mechanism to confirm the receipt of a 
 
 Each event packet has a flag field. This is a kind of package number with a value of 0 or1. The device in each packet inverts the flag relative to the previous one sent by it. Thus, there are no two adjacent packets from the same device with the same flag value. Flags from different devices are not connected in any way.
 
-When the client has correctly received the event packet, it must acknowledge the receipt of the events to the device. The client must remember the last flag value in the packet for each device. In the next event request cycle, in the request command `0x10` in the confirmation field, the client specifies the server id of the device and the flag that was specified in the previous received event packet. All devices receive this packet, even if they did not win the arbitration, and if they see their `slave_id` in the confirmation field in the packet, they forget the previously sent batch of events (with the corresponding confirmation flag).
+When the client has correctly received the event packet, it must acknowledge the receipt of the events to the device. The client must remember the last flag value in the packet for each device. In the next event request cycle, in the request command `0x10` in the confirmation field, the client specifies the server id of the device and the flag that was specified in the previous received event packet. All devices receive this packet, even if they did not win the arbitration, and if they see their `server_id` in the confirmation field in the packet, they forget the previously sent batch of events (with the corresponding confirmation flag).
 
 Possible errors during confirmation:
 
