@@ -59,7 +59,7 @@ Example:
 
 ### Continue scanning function - 0x02
 
-The master can then continue scanning the bus by sending this command. Devices that have not yet sent information about themselves arrange arbitration, and the device with the lowest serial number sends a scan response with information about itself.
+The client can then continue scanning the bus by sending this command. Devices that have not yet sent information about themselves arrange arbitration, and the device with the lowest serial number sends a scan response with information about itself.
 
 - (1 byte) `0xFD` broadcast address
 - (1 byte) `0x46` command for working with extended functions
@@ -89,13 +89,13 @@ Example:
 <-FF FF FF FF FF FF FF FF FF FD 46 03 00 01 EB 37 0C CE DC
 ```
 
-In this case, the master ignores bytes with the value 0xFF until it receives a response frame. Based on the response from the master, it is advisable to remember all the found devices and their modbus addresses. If the modbus address is repeated, it can be changed by identifying the device by serial number.
+In this case, the client ignores bytes with the value 0xFF until it receives a response frame. Based on the response from the client, it is advisable to remember all the found devices and their modbus addresses. If the modbus address is repeated, it can be changed by identifying the device by serial number.
 
-Between scanning requests, the master can execute any command, for example, read information about the device or change the address, accessing the device by serial number.
+Between scanning requests, the client can execute any command, for example, read information about the device or change the address, accessing the device by serial number.
 
 ### End of scan function - 0x04
 
-The master repeats the scan request until all devices are found. If there are no new devices left, the device with the lowest serial number will respond, and in the response it will report that there are no new devices left. This way we save the master from having to wait until the timeout occurs.
+The client repeats the scan request until all devices are found. If there are no new devices left, the device with the lowest serial number will respond, and in the response it will report that there are no new devices left. This way we save the client from having to wait until the timeout occurs.
 
 - (1 byte) `0xFD` broadcast address
 - (1 byte) `0x46` command for working with extended functions
@@ -112,7 +112,7 @@ The scan request can be repeated periodically and thus, for example, understand 
 
 ## Scan order
 
-The master selects the speed and parity settings and sends the start scan command (`0x01`) with them. Next, you need to wait the standard time (3.5 frames) and after that, if there are devices on the bus, then one of them will return a scan response with the command `0x03`. All preceding `0xFF` bytes must be ignored. If after the waiting time there is no response, then there are no devices on the bus with these connection settings and you can proceed to scanning on other port settings. If there was a response, then after it you can send the command to continue scanning (`0x02`) and receive data about the next device. This can be repeated until the scan is completed (`0x04`).
+The client selects the speed and parity settings and sends the start scan command (`0x01`) with them. Next, you need to wait the standard time (3.5 frames) and after that, if there are devices on the bus, then one of them will return a scan response with the command `0x03`. All preceding `0xFF` bytes must be ignored. If after the waiting time there is no response, then there are no devices on the bus with these connection settings and you can proceed to scanning on other port settings. If there was a response, then after it you can send the command to continue scanning (`0x02`) and receive data about the next device. This can be repeated until the scan is completed (`0x04`).
 
 ### Arbitrage in scanning
 
@@ -206,7 +206,7 @@ where `N` is the number of arbitration windows, `ceil_bits(x)` is rounded up to 
 
 ## Events
 
-The library allows you to quickly poll events that occur on devices without polling each of them in turn. **This is only possible if there are no devices on the network with the same slave ID**.
+The library allows you to quickly poll events that occur on devices without polling each of them in turn. **This is only possible if there are no devices on the network with the same server ID**.
 The following functions are provided for event polling: event query, event transmission and no events.
 
 ### Event Request Function - 0x10
@@ -214,8 +214,8 @@ The following functions are provided for event polling: event query, event trans
 - (1 byte) `0xFD` broadcast address
 - (1 byte) `0x46` command for working with extended functions
 - (1 byte) `0x10` subcommand - request events from devices
-- (1 byte) minimum slave id of the device from which to start responding
-- (1 byte) the maximum length of the data field with events in the packet that the master expects; according to the standard, the length of the entire packet should not exceed 256 bytes.
+- (1 byte) minimum server id of the device from which to start responding
+- (1 byte) the maximum length of the data field with events in the packet that the client expects; according to the standard, the length of the entire packet should not exceed 256 bytes.
 - (1 byte) `slave_id` of the device from which the previous event packet was received
 - (1 byte) flag of the previous received packet to confirm reception (see below).
 - (2 bytes) checksum
@@ -273,15 +273,15 @@ The cycle of an event request and device response for one event with 2 bytes of 
 
 ## Event polling order
 
-The polling cycle can begin after the completion of any command, including the slave's response. The request begins with the master sending a packet with the `0x10` event request command. If there is nothing to confirm, set the confirmation field to 0 address 0 flag.
+The polling cycle can begin after the completion of any command, including the server's response. The request begins with the client sending a packet with the `0x10` event request command. If there is nothing to confirm, set the confirmation field to 0 address 0 flag.
 
 Devices conduct arbitration through standard 3.5 frames (see description below), and if there are devices that want to report events that have occurred, then the device that wins the arbitration responds with a packet with the command `0x11`, in which it transmits a list of events. Events have an identifier, a type, and optionally additional data. The maximum packet size is 256 bytes according to the standard. If the events do not fit into one packet, then at the next request the device will continue to win arbitration and transmit events.
 
-The master can then repeat the cycle and request events again.
+The client can then repeat the cycle and request events again.
 
-Confirmation of receipt of events by the master is done through the parameters in the following request, in order to save time when polling, see "Confirmation of event receipt"
+Confirmation of receipt of events by the client is done through the parameters in the following request, in order to save time when polling, see "Confirmation of event receipt"
 
-If a device is transmitting too many events and preventing others from transmitting events, the master can specify a slave id greater than the device's in the request packet to allow that device to pass (along with all others whose `slave_id` is less than the specified one).
+If a device is transmitting too many events and preventing others from transmitting events, the client can specify a server id greater than the device's in the request packet to allow that device to pass (along with all others whose `slave_id` is less than the specified one).
 
 ### Arbitration in events
 
@@ -320,32 +320,32 @@ Delivery guarantee is implemented using a mechanism to confirm the receipt of a 
 
 Each event packet has a flag field. This is a kind of package number with a value of 0 or1. The device in each packet inverts the flag relative to the previous one sent by it. Thus, there are no two adjacent packets from the same device with the same flag value. Flags from different devices are not connected in any way.
 
-When the master has correctly received the event packet, it must acknowledge the receipt of the events to the device. The master must remember the last flag value in the packet for each device. In the next event request cycle, in the request command `0x10` in the confirmation field, the master specifies the slave id of the device and the flag that was specified in the previous received event packet. All devices receive this packet, even if they did not win the arbitration, and if they see their `slave_id` in the confirmation field in the packet, they forget the previously sent batch of events (with the corresponding confirmation flag).
+When the client has correctly received the event packet, it must acknowledge the receipt of the events to the device. The client must remember the last flag value in the packet for each device. In the next event request cycle, in the request command `0x10` in the confirmation field, the client specifies the server id of the device and the flag that was specified in the previous received event packet. All devices receive this packet, even if they did not win the arbitration, and if they see their `slave_id` in the confirmation field in the packet, they forget the previously sent batch of events (with the corresponding confirmation flag).
 
 Possible errors during confirmation:
 
-- error when transmitting from a master with one device:
+- error when transmitting from a client with one device:
 
-   - devices will not respond. The master will time out and send the request again with the same confirmation field.
+   - devices will not respond. The client will time out and send the request again with the same confirmation field.
 
-- error when transmitting from a slave with one device:
+- error when transmitting from a server with one device:
 
-   - the master will accept the broken package. Requests again with the same confirmation field, the slave device will see that the confirmation flag does not correspond to the previously sent packet (which was lost), understand that the events were not delivered and will again send a packet with the same flag as in the lost packet with the same events. Perhaps it will add new events to the package.
+   - the client will accept the broken package. Requests again with the same confirmation field, the server device will see that the confirmation flag does not correspond to the previously sent packet (which was lost), understand that the events were not delivered and will again send a packet with the same flag as in the lost packet with the same events. Perhaps it will add new events to the package.
 
-- error when transmitting from a slave with several devices:
+- error when transmitting from a server with several devices:
 
-   - the master will accept the broken package. Requests again with the same acknowledgment field, the slave device will see that the acknowledgment flag does not match the previously sent packet and will try to send it again. It may lose arbitration, then this packet will be sent to one of the next requests.
+   - the client will accept the broken package. Requests again with the same acknowledgment field, the server device will see that the acknowledgment flag does not match the previously sent packet and will try to send it again. It may lose arbitration, then this packet will be sent to one of the next requests.
 
-- reboot the master:
+- reboot the client:
 
-   - the master starts sending requests with an empty confirmation field. All devices will repeat packets if they have not been previously acknowledged.
+   - the client starts sending requests with an empty confirmation field. All devices will repeat packets if they have not been previously acknowledged.
 
-- reboot the slave:
+- reboot the server:
 
-   - the master, during the next event polling, will receive a reboot event from the slave and synchronize the flag with the packet. Even if the device responds to a request confirming its address, a packet with a reboot event will be sent with any flag option.
+   - the client, during the next event polling, will receive a reboot event from the server and synchronize the flag with the packet. Even if the device responds to a request confirming its address, a packet with a reboot event will be sent with any flag option.
 
-- error when receiving confirmation from the slave:
-   - the slave will not reset the events for himself, but the master will be sure that the events have been reset. In the next polling cycle, the slave will send the same set of events as last time, and may add new ones. If the master remembers which package of events he last received from this slave, he can compare the new package with the old one and take into account only those events that are not in the old one, but are in the new one. If it doesn’t remember, it will publish the same set of events again (_potential duplication of events_).
+- error when receiving confirmation from the server:
+   - the server will not reset the events for himself, but the client will be sure that the events have been reset. In the next polling cycle, the server will send the same set of events as last time, and may add new ones. If the client remembers which package of events he last received from this server, he can compare the new package with the old one and take into account only those events that are not in the old one, but are in the new one. If it doesn’t remember, it will publish the same set of events again (_potential duplication of events_).
 
 ## Event sources
 
@@ -360,13 +360,13 @@ Technically, each register can transmit events, which can be changed in the devi
 ### Device reset detection
 
 As soon as the firmware starts, it informs about this with a power-on event. This is the only event that is allowed once enabled.
-Having read this event, the master understands that the device has been rebooted and it is necessary to reconfigure event generation. It makes sense to send the next event request only after successful configuration of event generation on the device. After a reset, the event will not occur until the device reboots.
+Having read this event, the client understands that the device has been rebooted and it is necessary to reconfigure event generation. It makes sense to send the next event request only after successful configuration of event generation on the device. After a reset, the event will not occur until the device reboots.
 
 The enable event is of type `0x0F`, ID 0, priority low.
 
-If the master has restarted and plans toIf all devices appear in any case, then it can turn off sending the enable event so as not to waste time receiving it during the next event request cycle.
+If the client has restarted and plans toIf all devices appear in any case, then it can turn off sending the enable event so as not to waste time receiving it during the next event request cycle.
 
-To work around the situation where a slave may not receive a request packet from the master confirming its enable event, the sending of an enable event should be disabled during configuration. Even if we just received this event.
+To work around the situation where a server may not receive a request packet from the client confirming its enable event, the sending of an enable event should be disabled during configuration. Even if we just received this event.
 
 ### Event sending configuration function - 0x18
 
@@ -374,7 +374,7 @@ We need it as quickly as possible, i.e. in one transaction, configure everything
 
 Command Description:
 
-- (1 byte) slave id device address
+- (1 byte) server id device address
 - (1 byte) `0x46` control command for allowing event transmission
 - (1 byte) `0x18` subcommand - controls the resolution of transmission of register value change events
 - (1 byte) length of the settings list
@@ -408,7 +408,7 @@ An example of enabling sending events when changing discrete registers 4 and 6 w
     |  |  |  `-- length (20)         |   |    |  |     |                    `-- register 473
     |  |  `-- subcommand             |   |    |  |     `-- register 466
     |  `-- command                   |   |    |  `-- register 464
-    `-- slave id                     |   |    `-- number of registers (10)
+    `-- server id                     |   |    `-- number of registers (10)
                                      |   `-- address (464)
                                      `-- type (input)
 ```
@@ -416,7 +416,7 @@ An example of enabling sending events when changing discrete registers 4 and 6 w
 
 Response from device:
 
-- (1 byte) slave id device address
+- (1 byte) server id device address
 - (1 byte) `0x46` control command for allowing event transmission
 - (1 byte) `0x18` subcommand - controls the permission of transmission of register value change events
 - (1 byte) length of the list of setting values
@@ -441,7 +441,7 @@ An example of a response to the command above, a device with address 0x0A. `disc
     |  |  |  `-- length (3)
     |  |  `-- subcommand
     |  `-- command
-    `-- slave id
+    `-- server id
 ```
 
 This format allows you to enable all the desired events in 1 bus exchange cycle, which greatly saves time and leaves flexibility for situations where the firmware does not support all events.
