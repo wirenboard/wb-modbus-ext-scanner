@@ -12,7 +12,7 @@ The repository contains a description of the Wiren Board Modbus protocol extensi
 
 To display help, call the utility without arguments
 
-```
+```sh
 # wb-modbus-scanner
 Wirenboard modbus extension tool. version: 1.2.0
 Usage: ./wb-modbus-scanner -d device [-b baud] [-s sn] [-i id] [-D]
@@ -45,7 +45,7 @@ Event request examples:
 
 Example call:
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200
 Serial port: /dev/ttyRS485-1
 Use baud 115200
@@ -63,23 +63,26 @@ If not all devices are found, try running the utility with the -L flag
 
 Example call:
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-1 -b 115200 -s 4267937719 -i 3
 Serial port: /dev/ttyRS485-1
-Use baud 115200
-Chande ID for device with serial 4267937719 [FE638FB7] New ID: 3
+
+Using baud 115200
+Change ID for device with serial   4267937719 [FE638FB7] New ID: 3
+
 ```
 
 ## Enable sending modbus register events
 
 Example call:
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-2 -D -i 62 -r0 -t 1 -c 1
 Serial port: /dev/ttyRS485-2
 Use baud 9600
-     -> : 3E 46 18 05 01 00 00 01 01 F3 4F
-     <- : 3E 46 18 01 01 58 DA
+
+    -> :  3E 46 18 05 01 00 00 01 01 F3 4F
+    <- :  3E 46 18 01 01 58 DA
 
 ```
 
@@ -89,16 +92,17 @@ Here we enabled the device with address 62 to transmit an event when coil (type 
 
 Example call:
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-2 -e 0
 Serial port: /dev/ttyRS485-2
-Use baud 9600
-     send EVENT GET -> : FD 46 10 00 FF 00 00 C8 9A
-     <- : FF FF FF FF FF 3E 46 11 00 03 10 01 02 00 03 00 02 04 00 23 01 00 01 01 00 03 00 4F CF
-     device: 62 - events: 3 flag: 0 event data len: 016 frame len: 024
-Event type: 2 id: 3 [0003] payload: 0 device 62
-Event type: 4 id: 35 [0023] payload: 1 device 62
-Event type: 1 id: 3 [0003] payload: 0 device 62
+
+Using baud 9600
+    send EVENT GET    -> :  FD 46 10 00 FF 00 00 C8 9A
+    <- :  FF FF FF FF FF 3E 46 11 00 03 10 01 02 00 03 00 02 04 00 23 01 00 01 01 00 03 00 4F CF
+    device:  62 - events:   3   flag: 0   event data len: 016   frame len: 024
+Event type:   2   id:     3 [0003]   payload:          0   device 62
+Event type:   4   id:    35 [0023]   payload:          1   device 62
+Event type:   1   id:     3 [0003]   payload:          0   device 62
 ```
 
 A request was sent here without confirmation of previous events
@@ -113,7 +117,7 @@ We also see that the confirmation flag has the value 0
 
 To confirm events from this device and request the next ones, you need to use the -e switch with address 62
 
-```
+```sh
 # wb-modbus-scanner -d /dev/ttyRS485-2 -e 62 -D
 Serial port: /dev/ttyRS485-2
 Use baud 9600

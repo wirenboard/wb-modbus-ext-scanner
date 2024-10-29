@@ -1,3 +1,21 @@
+wb-modbus-ext-scanner (1.2.5) stable; urgency=medium
+
+  * Fix crash on -h
+
+ -- Nikolay Korotkiy <nikolay.korotkiy@wirenboard.com>  Mon, 27 May 2024 11:15:00 +0400
+
+wb-modbus-ext-scanner (1.2.4) stable; urgency=medium
+
+  * Fix typos and grammar
+
+ -- Radmir Khakimov <radmir.khakimov@wirenboard.com>  Fri, 18 May 2024 00:15:00 +0500
+
+wb-modbus-ext-scanner (1.2.3) stable; urgency=medium
+
+  * Add amd64 build, no functional changes
+
+ -- Nikolay Korotkiy <nikolay.korotkiy@wirenboard.com>  Mon, 15 Jan 2024 11:15:00 +0400
+
 wb-modbus-ext-scanner (1.2.2) stable; urgency=medium
 
   * Add arm64 build, no functional changes
