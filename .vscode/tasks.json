@@ -9,9 +9,9 @@
                     "-std=c++17",
                     "-g",
                     "-fpermissive",
-                    "${fileDirname}\\modbus_crc.c","${fileDirname}\\scanner.c"
+                    "${fileDirname}\\modbus_crc.c","${fileDirname}\\scanner.c",
                     "-o",
-                    "${fileDirname}\\wb-modbus-scanner.exe"
+                    "${fileDirname}\\windows\\wb-modbus-scanner.exe"
                 ],
                 "options": {
                     "cwd": "D:\\msys64\\mingw64\\bin"
