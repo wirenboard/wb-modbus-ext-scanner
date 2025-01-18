@@ -64,39 +64,40 @@ uint8_t tx_buf[BUFFER_SIZE];
 void delay_send(int len)
 {
     ULONGLONG StartTime = GetTickCount64();
-int32_t byte_timeout_ms=byte_send_time.tv_sec*1000+len*byte_send_time.tv_nsec/1000;
+   int32_t byte_timeout_ms=len*byte_send_time.tv_nsec/1000000;
 
-do { }while (GetTickCount64() - StartTime <= byte_timeout_ms);
+   do { }while (GetTickCount64() - StartTime <= byte_timeout_ms);
 
 }
-int32_t ReadCommPort(HANDLE hComm, uint8_t* buf, uint16_t count, int32_t byte_timeout_ms) {
+int32_t ReadCommPort(HANDLE hComm, uint8_t* buf, uint16_t count) {
     int TotalBytesRead = 0;
     bool Status = false;
-    ULONGLONG StartTime = 0;
+    //ULONGLONG StartTime = 0;
     uint8_t b;
     int tmpByteCount;
 
-    StartTime = GetTickCount64();
+    //StartTime = GetTickCount64();
+    
 
     do {
+
         // read one byte
         Status = ReadFile(hComm, &b, 1, &tmpByteCount, NULL);
+    
 
         // can't read from port at all??
-        if (!Status)
-            return false;
+        if (!Status){
+            printf("can't read from port at all??\n");
+            return 0;
+        }
 
         // put one byte into our buffer
         if (tmpByteCount == 1) {
             buf[TotalBytesRead++] = b;
         }
+       
 
-        // did we time out yet??
-        if (GetTickCount64() - StartTime > byte_timeout_ms) {
-            break;
-        }
-
-    } while (TotalBytesRead < count);
+    } while (tmpByteCount!=0 and (TotalBytesRead<count));
 
     return TotalBytesRead;
 }
@@ -105,7 +106,7 @@ UINT WriteToCommPort(HANDLE hComm, uint8_t* data_ptr, int data_length) {
 
     int actual_length;
 
-    PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
+    //PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
 
     bool Status = WriteFile(hComm,       // Handle to the Serialport
                             data_ptr,    // Data to be written to the port
@@ -121,7 +122,7 @@ UINT WriteToCommPort(HANDLE hComm, uint8_t* data_ptr, int data_length) {
 
     return data_length;
 }
-bool SetLocalBaudRate(HANDLE hComm, DWORD baudrate) {
+bool SetLocalBaudRate(HANDLE hComm, DWORD baudrate, DCB dcb_set) {
     bool Status;
     DCB dcb = {0};
 
@@ -135,8 +136,11 @@ bool SetLocalBaudRate(HANDLE hComm, DWORD baudrate) {
 
     dcb.BaudRate = baudrate;
     dcb.ByteSize = 8;             // ByteSize = 8
-    dcb.StopBits = ONESTOPBIT;    // StopBits = 1
-    dcb.Parity = NOPARITY;        // Parity = None
+    //dcb.StopBits = ONESTOPBIT;    // StopBits = 1
+    //dcb.StopBits = TWOSTOPBITS;    // StopBits = 2
+    dcb.StopBits=dcb_set.StopBits;
+    //dcb.Parity = NOPARITY;        // Parity = None
+    dcb.Parity=dcb_set.Parity;
 
     Status = SetCommState(hComm, &dcb);
 
@@ -145,7 +149,7 @@ bool SetLocalBaudRate(HANDLE hComm, DWORD baudrate) {
 
 
 int32_t read_serial(uint8_t* buf, uint16_t count) {
-    return ReadCommPort(hComm, buf, count, TIME_OUT_READ);
+    return ReadCommPort(hComm, buf, count);
 }
 
 int32_t write_serial(uint8_t* buf, uint16_t count) {
@@ -161,7 +165,7 @@ void delay_send(int len)
 }
 
 int32_t read_serial(uint8_t* buf, uint16_t count) {
-    return read(fd, buf, count, byte_timeout_ms);
+    return read(fd, buf, count);
 }
 
 int32_t write_serial(uint8_t* buf, uint16_t count) {
@@ -372,7 +376,9 @@ int read_responce(uint8_t ** ptr)
     while (1) {
         int rdlen = read_serial(rb, READ_LEN);
         if (rdlen > 0) {
-            // print_hb("   <! ", rb, rdlen);
+            if (debug) {
+            //print_hb("   <! ", rb, rdlen);
+            }
             rb += rdlen;
 
             int data_len = rb - rx_buf;
@@ -515,10 +521,63 @@ int check_baud_get_setting(int param)
     }
     return valueIsIn;
 }
+#ifndef _WIN32
+int check_parity_set_setting(char parity, tcflag_t * c_cflag)
+{
+    if ((parity == 'n') || (parity == 'N')) {
+        *c_cflag &= ~PARENB;
+        return 1;
+    }
+    if ((parity == 'e') || (parity == 'E')) {
+        *c_cflag |= PARENB;
+        *c_cflag &= ~PARODD;
+        return 1;
+    }
+    if ((parity == 'o') || (parity == 'O')) {
+        *c_cflag |= PARENB;
+        *c_cflag |= PARODD;
+        return 1;
+    }
+    return 0;
+}
+#else
+int check_parity_set_setting(char parity, DCB* dcb_set)
+{
+    if ((parity == 'n') || (parity == 'N')) {
+        dcb_set->Parity = NOPARITY;
+        return 1;
+    }
+    if ((parity == 'e') || (parity == 'E')) {
+        dcb_set->Parity = EVENPARITY;
+        return 1;
+    }
+    if ((parity == 'o') || (parity == 'O')) {
+        dcb_set->Parity = ODDPARITY;
+        return 1;
+    }
+    return 0;
+}
 
+int check_stopbit_set_setting(char stop, DCB* dcb_set)
+{
+    if (stop == '1') {
+        dcb_set->StopBits = ONESTOPBIT;     // StopBits = 1
+        return 1;
+    }
+    if (stop == '2') {
+        dcb_set->StopBits = TWOSTOPBITS;    // StopBits = 1
+        return 1;
+    }
+    return 0;
+}
 
+#endif
 int configure_tty(int baud)
 {
+    //удалить при слиянии с веткой Feature/parity
+    char parity='n';
+    //а такая настройка если будет, то тоже удалить
+    char stop='2';
 #ifndef _WIN32
     speed_t baud_setting = B1152000;
 #endif
@@ -535,11 +594,28 @@ int configure_tty(int baud)
     };
 
 #ifdef _WIN32
-    uint8_t SerialBuffer[2048] = {0};
     COMMTIMEOUTS timeouts = {0};
     bool Status;
+    DCB dcb_set = {0};
+    if (check_stopbit_set_setting(stop, &dcb_set)) {
+        if (debug) {
+            printf("Using %c stop bit\n", stop);
+        }
+    } else {
+        printf("Stop bit %c is not supported!\n", stop);
+        return -1;
+    };
 
-    Status = SetLocalBaudRate(hComm, baud);
+    if (check_parity_set_setting(parity, &dcb_set)) {
+        if (debug) {
+            printf("Using parity %c\n", parity);
+        }
+    } else {
+        printf("Parity %c is not supported!\n", parity);
+        return -1;
+    };
+
+    Status = SetLocalBaudRate(hComm, baud, dcb_set);
     if (!Status){
         printf("Error from SetLocalBaudRate\n");
         return -1;
@@ -549,11 +625,11 @@ int configure_tty(int baud)
     // https://docs.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-commtimeouts
 
     timeouts.ReadIntervalTimeout = MAXDWORD;
-    timeouts.ReadTotalTimeoutMultiplier = TIME_OUT_READ*10;
-    timeouts.ReadTotalTimeoutConstant = TIME_OUT_READ;
+    timeouts.ReadTotalTimeoutMultiplier = 0;
+    timeouts.ReadTotalTimeoutConstant = 0;
 
-    timeouts.WriteTotalTimeoutConstant = TIME_OUT_READ;
-    timeouts.WriteTotalTimeoutMultiplier = TIME_OUT_READ*10;
+    timeouts.WriteTotalTimeoutConstant = 0;
+    timeouts.WriteTotalTimeoutMultiplier = 0;
 
     if (!SetCommTimeouts(hComm, &timeouts)){
         printf("Error from SetCommTimeouts\n");
