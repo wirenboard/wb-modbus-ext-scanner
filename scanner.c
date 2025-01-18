@@ -4,7 +4,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#ifndef _WIN32
 #include <termios.h>
+#endif
 #include <getopt.h>
 #include <time.h>
 #include "modbus_crc.h"
@@ -41,19 +43,35 @@
 #define PAYLOAD_EXT_OFFSET          7
 
 int debug = 0;
-
+#ifndef _WIN32
 int fd = 0;
+#else
+HANDLE hComm=INVALID_HANDLE_VALUE;
+int commPort_In;
+#endif
+
 struct timespec byte_send_time;
 uint8_t rx_buf[BUFFER_SIZE];
 uint8_t tx_buf[BUFFER_SIZE];
 
+#ifdef _WIN32
+void delay_send(int len)
+{
+    ULONGLONG StartTime = GetTickCount64();
+int32_t byte_timeout_ms=byte_send_time.sec*1000+len*byte_send_time.tv_nsec/1000;
+
+do { }while (GetTickCount64() - StartTime <= byte_timeout_ms);
+
+}
+
+#else
 void delay_send(int len)
 {
     for (int i = 0; i < len; i++) {
         nanosleep(&byte_send_time, NULL);
     }
 }
-
+#endif
 void delay_frame(void)
 {
     // 3,5 байта, для надежности 5
@@ -392,6 +410,8 @@ int check_baud_get_setting(int param, speed_t * setup_val)
     return valueIsIn;
 }
 
+
+#else
 int configure_tty(int baud)
 {
     speed_t baud_setting = B1152000;
@@ -403,6 +423,37 @@ int configure_tty(int baud)
         return -1;
     };
 
+#ifdef _WIN32
+    uint8_t SerialBuffer[2048] = {0};
+    COMMTIMEOUTS timeouts = {0};
+
+    Status = SetLocalBaudRate(hComm, baud);
+    if (!Status){
+        printf("Error from SetLocalBaudRate\n");
+        return -1;
+    }
+
+    // setup the timeouts for the SerialPort
+    // https://docs.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-commtimeouts
+
+    timeouts.ReadIntervalTimeout = MAXDWORD;
+    timeouts.ReadTotalTimeoutMultiplier = 0;
+    timeouts.ReadTotalTimeoutConstant = 0;
+
+    timeouts.WriteTotalTimeoutConstant = 0;
+    timeouts.WriteTotalTimeoutMultiplier = 0;
+
+    if (!SetCommTimeouts(hComm, &timeouts)){
+        printf("Error from SetCommTimeouts\n");
+        return -1;
+    }
+    Status = PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);    // clear the buffers before we start
+    if (!Status){
+        printf("Error from PurgeComm\n");
+        return -1;
+    }
+
+#else
     struct termios tty;
 
     if (tcgetattr(fd, &tty) < 0) {
@@ -422,7 +473,8 @@ int configure_tty(int baud)
         printf("Error from tcsetattr: %s\n", strerror(errno));
         return -1;
     }
-    long nsec = 1000000000 / baud;
+#endif
+    long nsec = 1000 000 000 / baud;
 
     // 12 бит в одном фрейме
     nsec *=  12;
@@ -432,6 +484,7 @@ int configure_tty(int baud)
 
     return 0;
 }
+#endif
 
 void tool_scan(uint8_t ext_cmd)
 {
@@ -691,11 +744,29 @@ int main(int argc, char *argv[])
         switch(c) {
         case 'd':
             printf("Serial port: %s\n", optarg);
+#ifdef _WIN32
+    // Open the serial com port
+    hComm = CreateFileA(commName,
+                         GENERIC_READ | GENERIC_WRITE,    // Read/Write Access
+                         0,                               // No Sharing, ports cant be shared
+                         NULL,                            // No Security
+                         OPEN_EXISTING,                   // Open existing port only
+                         0,
+                         NULL);    // Null for Comm Devices
+#else
             fd = open(optarg, O_RDWR | O_NOCTTY | O_SYNC);
+
+#endif
+
+#ifdef _WIN32
+    if (hComm == INVALID_HANDLE_VALUE){
+#else
             if (fd < 0) {
+#endif
                 printf("Error opening port %s\n", strerror(errno));
                 return EXIT_FAILURE;
             }
+
             break;
 
         case 'D':
@@ -756,7 +827,11 @@ int main(int argc, char *argv[])
         }
     }
 
+#ifdef _WIN32
+    if (hComm == INVALID_HANDLE_VALUE){
+#else
     if (fd == 0) {
+#endif
         printf("Serial port not specified\n");
         return EXIT_INVALIDARGUMENT;
     }
