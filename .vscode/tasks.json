@@ -1,0 +1,29 @@
+{
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "type": "shell",
+                "label": "g++.exe build active file",
+                "command": "D:/msys64/mingw64/bin/g++.exe",
+                "args": [
+                    "-std=c++17",
+                    "-g",
+                    "-fpermissive",
+                    "${fileDirname}\\modbus_crc.c","${fileDirname}\\scanner.c"
+                    "-o",
+                    "${fileDirname}\\wb-modbus-scanner.exe"
+                ],
+                "options": {
+                    "cwd": "D:\\msys64\\mingw64\\bin"
+                },
+                "problemMatcher": [
+                    "$gcc"
+                ],
+                "group": {
+                    "kind": "build",
+                    "isDefault": true
+                }
+
+            }
+        ]
+    }
