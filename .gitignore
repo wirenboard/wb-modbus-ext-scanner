@@ -1,2 +1,4 @@
 # binary
 wb-modbus-scanner
+wb-modbus-scanner_*.exe
+libserialport*
