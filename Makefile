@@ -18,16 +18,12 @@ all: $(BIN_NAME)
 $(BIN_NAME): scanner.c modbus_crc.c
 	$(CC) $(CFLAGS) $^ -o $(BIN_NAME) -lserialport
 
-libserialport-$(W32_CROSS):
-	curl -L https://github.com/sigrokproject/libserialport/releases/download/libserialport-0.1.2/libserialport-0.1.2.tar.gz | tar xzv
-	mv libserialport-0.1.2 $@
+libserialport/.libs/libserialport.a:
+	cd libserialport && ./autogen.sh && ./configure --host $(W32_CROSS) --enable-static=yes
+	make -C libserialport
 
-libserialport-$(W32_CROSS)/.libs/libserialport.a: libserialport-$(W32_CROSS)
-	cd $< && ./configure --host $(subst libserialport-,,$<) --enable-static=yes
-	make -C $<
-
-$(W32_BIN_NAME): scanner.c modbus_crc.c libserialport-$(W32_CROSS)/.libs/libserialport.a
-	$(W32_CROSS)-gcc $(CFLAGS) scanner.c modbus_crc.c $(CC_FLAGS) -I libserialport-$(W32_CROSS) -D_WIN32_WINNT=0x0600 -mconsole -static -L libserialport-$(W32_CROSS)/.libs/ -lserialport -lsetupapi -l ws2_32 -o $(W32_BIN_NAME)
+$(W32_BIN_NAME): scanner.c modbus_crc.c libserialport/.libs/libserialport.a
+	$(W32_CROSS)-gcc $(CFLAGS) scanner.c modbus_crc.c $(CC_FLAGS) -I libserialport -D_WIN32_WINNT=0x0600 -mconsole -static -L libserialport/.libs/ -lserialport -lsetupapi -l ws2_32 -o $(W32_BIN_NAME)
 	$(W32_CROSS)-strip --strip-unneeded $(W32_BIN_NAME)
 
 win32: $(W32_BIN_NAME)
