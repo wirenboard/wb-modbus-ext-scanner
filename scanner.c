@@ -422,7 +422,7 @@ void tool_scan(uint8_t ext_cmd)
 {
     struct {
         uint32_t serial;
-        uint8_t id
+        uint8_t id;
     } devices[DEVICES_MAX];
 
     typedef struct {
