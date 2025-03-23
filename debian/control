@@ -10,4 +10,4 @@ Package: wb-modbus-ext-scanner
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libserialport0
 Description: Scanner utility for extended Wiren Board Modbus protocol
-  Used to quick scan for devices supporting the new extended protocol
+ Used to quick scan for devices supporting the new extended protocol
