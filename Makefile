@@ -19,8 +19,8 @@ $(BIN_NAME): scanner.c modbus_crc.c
 	$(CC) $(CFLAGS) $^ -o $(BIN_NAME) -lserialport
 
 libserialport/.libs/libserialport.a:
-	cd libserialport && ./autogen.sh && ./configure --host $(W32_CROSS) --enable-static=yes
-	make -C libserialport
+	cd libserialport && ./autogen.sh && ./configure --host=$(W32_CROSS) --enable-static=yes
+	$(MAKE) -C libserialport
 
 $(W32_BIN_NAME): scanner.c modbus_crc.c libserialport/.libs/libserialport.a
 	$(W32_CROSS)-gcc $(CFLAGS) scanner.c modbus_crc.c $(CC_FLAGS) -I libserialport -D_WIN32_WINNT=0x0600 -mconsole -static -L libserialport/.libs/ -lserialport -lsetupapi -l ws2_32 -o $(W32_BIN_NAME)
@@ -33,5 +33,6 @@ install:
 
 clean:
 	-@rm -f $(BIN_NAME)
+	$(MAKE) -C libserialport clean
 
 .PHONY: clean all install
