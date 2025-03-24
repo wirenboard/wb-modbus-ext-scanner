@@ -3,11 +3,11 @@ Maintainer: Nikita Kulikov <n.kulikov@wirenboard.ru>
 Section: misc
 Priority: optional
 Standards-Version: 3.9.2
-Build-Depends: debhelper (>= 9), pkg-config
+Build-Depends: debhelper (>= 9), pkg-config, libserialport-dev
 Homepage: https://github.com/wirenboard/wb-modbus-ext-scanner
 
 Package: wb-modbus-ext-scanner
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, libserialport0
 Description: Scanner utility for extended Wiren Board Modbus protocol
-  Used to quick scan for devices supporting the new extended protocol
+ Used to quick scan for devices supporting the new extended protocol

@@ -1,3 +1,9 @@
+wb-modbus-ext-scanner (1.3.0) stable; urgency=medium
+
+  * Add Windows/macOS support
+
+ -- Nikolay Korotkiy <nikolay.korotkiy@wirenboard.com>  Sun, 23 Mar 2025 18:15:00 +0400
+
 wb-modbus-ext-scanner (1.2.5) stable; urgency=medium
 
   * Fix crash on -h

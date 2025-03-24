@@ -4,7 +4,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
-#include <termios.h>
+#include <libserialport.h>
+#include <limits.h>
 #include <getopt.h>
 #include <time.h>
 #include "modbus_crc.h"
@@ -42,17 +43,31 @@
 
 int debug = 0;
 
-int fd = 0;
+struct sp_port *port = NULL;
+enum sp_return result;
 struct timespec byte_send_time;
 uint8_t rx_buf[BUFFER_SIZE];
 uint8_t tx_buf[BUFFER_SIZE];
 
+#if defined(_WIN32)
+#include <windows.h>
+
+void delay_send(int len)
+{
+    ULONGLONG StartTime = GetTickCount64();
+    int32_t byte_timeout_ms = len * byte_send_time.tv_nsec / 1000000;
+
+    do { }
+    while (GetTickCount64() - StartTime <= byte_timeout_ms);
+}
+#else // _WIN32
 void delay_send(int len)
 {
     for (int i = 0; i < len; i++) {
         nanosleep(&byte_send_time, NULL);
     }
 }
+#endif
 
 void delay_frame(void)
 {
@@ -111,7 +126,7 @@ void send_cmd_in_tx_buf(uint8_t crc_offset)
     if (debug) {
         print_hb("    ->", tx_buf, len);
     }
-    int wlen = write(fd, tx_buf, len);
+    int wlen = sp_nonblocking_write(port, tx_buf, len);
     if (wlen != (crc_offset + 2)) {
         printf("Error from write: %d, %d\n", wlen, errno);
     }
@@ -255,7 +270,7 @@ int read_responce(uint8_t ** ptr)
     uint8_t * rb = rx_buf;
 
     while (1) {
-        int rdlen = read(fd, rb, READ_LEN);
+        int rdlen = sp_nonblocking_read(port, rb, READ_LEN);
         if (rdlen > 0) {
             // print_hb("   <! ", rb, rdlen);
             rb += rdlen;
@@ -364,27 +379,12 @@ int parse_special_responce_str(uint8_t * frame, char * str, int len)
     return 0;
 }
 
-void print_termios(struct termios * tty)
-{
-    printf("  c_iflag   : %08X\r\n",    tty->c_iflag);
-    printf("  c_oflag   : %08X\r\n",    tty->c_oflag);
-    printf("  c_cflag   : %08X\r\n",    tty->c_cflag);
-    printf("  c_lflag   : %08X\r\n",    tty->c_lflag);
-    printf("  c_line    : %c\r\n",      tty->c_line);
-    printf("  c_cc      : %s\r\n",      tty->c_cc);
-    printf("  c_ispeed  : %08d\r\n",    tty->c_ispeed);
-    printf("  c_ospeed  : %08d\r\n",    tty->c_ospeed);
-
-}
-
-int check_baud_get_setting(int param, speed_t * setup_val)
+int check_baud_get_setting(int param)
 {
     static const int allowedBaudrates[] = { 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600 };
-    static const speed_t baud_settings[] = { B1200, B2400, B4800, B9600, B19200, B38400, B57600, B115200, B230400, B460800, B921600 };
     int valueIsIn = 0;
     for (unsigned int i = 0; i < (sizeof(allowedBaudrates) / sizeof(int)); i++){
         if (param == allowedBaudrates[i]) {
-            *setup_val = baud_settings[i];
             valueIsIn = 1;
             break;
         }
@@ -394,34 +394,19 @@ int check_baud_get_setting(int param, speed_t * setup_val)
 
 int configure_tty(int baud)
 {
-    speed_t baud_setting = B1152000;
-
-    if (check_baud_get_setting(baud, &baud_setting)) {
+    if (check_baud_get_setting(baud)) {
         printf("Using baud %d\n", baud);
     } else {
         printf("Baudrate %d is not supported!\n", baud);
         return -1;
     };
 
-    struct termios tty;
-
-    if (tcgetattr(fd, &tty) < 0) {
-        printf("Error from tcgetattr: %s\n", strerror(errno));
+    result = sp_set_baudrate(port, baud);
+    if (result != SP_OK) {
+        printf("Error from sp_set_baudrate: %s\n", sp_last_error_message());
         return -1;
     }
 
-    tty.c_iflag = 0;
-    tty.c_oflag = 0;
-    tty.c_cflag = 0x1CB2;
-    tty.c_lflag = 0;
-
-    cfsetospeed(&tty,(speed_t)baud_setting);
-    cfsetispeed(&tty,(speed_t)baud_setting);
-
-    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
-        printf("Error from tcsetattr: %s\n", strerror(errno));
-        return -1;
-    }
     long nsec = 1000000000 / baud;
 
     // 12 бит в одном фрейме
@@ -437,7 +422,7 @@ void tool_scan(uint8_t ext_cmd)
 {
     struct {
         uint32_t serial;
-        uint8_t id
+        uint8_t id;
     } devices[DEVICES_MAX];
 
     typedef struct {
@@ -634,6 +619,16 @@ void tool_event_ctrl(int id, uint8_t type, uint16_t addr, uint8_t val)
     return;
 }
 
+char* get_real_path(const char* path) {
+#if !defined(_WIN32)
+    char pathbuf[PATH_MAX + 1];
+    realpath(path, pathbuf);
+    return strdup(pathbuf);
+#else
+    return path;
+#endif
+}
+
 void print_help(const char* argv0)
 {
         printf(
@@ -691,9 +686,14 @@ int main(int argc, char *argv[])
         switch(c) {
         case 'd':
             printf("Serial port: %s\n", optarg);
-            fd = open(optarg, O_RDWR | O_NOCTTY | O_SYNC);
-            if (fd < 0) {
-                printf("Error opening port %s\n", strerror(errno));
+            result = sp_get_port_by_name(get_real_path(optarg), &port);
+            if (result != SP_OK) {
+                printf("sp_get_port_by_name() failed!\n");
+                return EXIT_FAILURE;
+            }
+            result = sp_open(port, SP_MODE_READ_WRITE);
+            if (result != SP_OK) {
+                printf("sp_open() failed\n");
                 return EXIT_FAILURE;
             }
             break;
@@ -756,7 +756,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (fd == 0) {
+    if (port == 0) {
         printf("Serial port not specified\n");
         return EXIT_INVALIDARGUMENT;
     }
@@ -767,7 +767,7 @@ int main(int argc, char *argv[])
 
     if (event_request) {
         if (maxlen > 0xFF) {
-            maxlen == 0xFF;
+            maxlen = 0xFF;
         }
         tool_event(id, maxlen, confirm_id,  event_request - 1);
         return 0;
