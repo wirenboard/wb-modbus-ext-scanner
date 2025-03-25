@@ -6,6 +6,13 @@ The repository contains a description of the Wiren Board Modbus protocol extensi
 
 `apt update && apt install wb-modbus-ext-scanner`
 
+## Build from sources
+
+```sh
+apt install build-essential autoconf automake libtool
+make
+```
+
 **!!! Before use, make sure that the serial port is not being used by another application. Stop the wb-mqtt-serial** service
 
 ## Utility parameters
