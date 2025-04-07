@@ -1,5 +1,6 @@
 buildDebSbuild(
-    defaultTargets: 'bullseye-armhf bullseye-arm64 bullseye-host',
+    defaultTargets: 'trixie-armhf trixie-arm64 trixie-host',
+    defaultWbdevImage: 'registry.wirenboard.lan/contactless/devenv_test:trixie',
     repos: ['release', 'devTools'],
     defaultRunLintian: true,
     customBuildSteps: {
