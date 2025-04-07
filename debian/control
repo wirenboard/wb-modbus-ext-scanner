@@ -2,8 +2,8 @@ Source: wb-modbus-ext-scanner
 Maintainer: Nikita Kulikov <n.kulikov@wirenboard.ru>
 Section: misc
 Priority: optional
-Standards-Version: 3.9.2
-Build-Depends: debhelper (>= 9), pkg-config, libserialport-dev
+Standards-Version: 4.5.1
+Build-Depends: debhelper-compat (= 13), pkg-config, libserialport-dev
 Homepage: https://github.com/wirenboard/wb-modbus-ext-scanner
 
 Package: wb-modbus-ext-scanner
