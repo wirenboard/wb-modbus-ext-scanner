@@ -269,11 +269,19 @@ Example:
 
 `<- FD 46 12 52 5D`
 
-The cycle of an event request and device response for one event with 2 bytes of data will take **42** frames, or **48.125** ms (9600) / **4.01** ms (115200)
+The cycle of an event request and device response for one event with 2 bytes of data will take **42** frames.
+At 115200 baud it takes approximately **4.01 ms**, while at 9600 baud it may take up to **48.125 ms**.
 
 ## Event polling order
 
-The polling cycle can begin after the completion of any command, including the server's response. The request begins with the client sending a packet with the `0x10` event request command. If there is nothing to confirm, set the confirmation field to 0 address 0 flag.
+The polling cycle can begin after the completion of any command, including the server's response. The event polling interval is adaptive and depends on the port speed: 
+- **50 ms** at **115200 baud** and higher  
+- **100 ms** at **38400…115199 baud**  
+- **200 ms** at lower speeds
+
+The controller automatically selects the interval based on serial port timing.
+
+The request begins with the client sending a packet with the `0x10` event request command. If there is nothing to confirm, set the confirmation field to 0 address 0 flag.
 
 Devices conduct arbitration through standard 3.5 frames (see description below). If there are some devices that want to report events that have been occurred, then the one, that wins the arbitration, responds by sending a packet with the command `0x11`, in which it transmits a list of events. Events have an identifier, a type, and optionally additional data. The maximum packet size is 256 bytes according to the standard. If the events do not fit into one packet, then at the next request the device will continue to win arbitration and transmit events.
 
