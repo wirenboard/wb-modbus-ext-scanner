@@ -835,7 +835,12 @@ FD 46 12 52 5D
 - `0x12` — subcommand for no events;
 - `0x52 0x5D` — checksum.
 
-After receiving the “no events” message, the master continues polling for new events, without confirmations. The wb-mqtt-serial driver sends event requests every 50 ms, ensuring near-instant event delivery.
+After receiving the “no events” message, the master continues polling for new events, without confirmations. The wb-mqtt-serial driver sends event requests at a fixed interval depending on the serial port speed:
+- 50 ms at 115200 baud and above
+- 100 ms at 38400–115199 baud
+- 200 ms at lower speeds
+
+This ensures timely event delivery without overloading the bus.
 
 ## Resolving address collisions on the bus
 
@@ -886,7 +891,7 @@ Since the extension is based on classic Modbus, and arbitration between devices 
 
 The master alternates between classic Modbus requests and Fast Modbus broadcast requests. Devices that do not support the extension simply ignore the unfamiliar broadcast address and commands.
 
-To illustrate, we started polling devices through our wb-mqtt-serial driver, which can simultaneously poll devices using regular polling and event-based polling. The driver sends an event request to the bus every 50 ms, reads the responses, and spends the rest of the time working with devices using normal polling. If the driver receives an “I rebooted” event from a device, it sends a packet with event settings to the device.
+To illustrate, we started polling devices through our wb-mqtt-serial driver, which can simultaneously poll devices using regular polling and event-based polling. The driver sends periodic event requests (50–200 ms depending on baud rate), reads the responses, and spends the rest of the time working with devices using normal polling. If the driver receives an “I rebooted” event from a device, it sends a packet with event settings to the device.
 
 ![Working on one device bus without support and with support for Fast Modbus](media/en/classic_modbus_interop.png "Working on one device bus without support and with support for Fast Modbus")
 _Work on the same device bus without and with support for Fast Modbus_
