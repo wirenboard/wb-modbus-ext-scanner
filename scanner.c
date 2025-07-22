@@ -394,19 +394,26 @@ int check_baud_get_setting(int param)
 
 int check_parity_set_setting(char parity, tcflag_t * c_cflag)
 {
-    if ((parity == 'n') || (parity == 'N')) {
-        *c_cflag &= ~PARENB;
-        return 1;
-    }
-    if ((parity == 'e') || (parity == 'E')) {
-        *c_cflag |= PARENB;
-        *c_cflag &= ~PARODD;
-        return 1;
-    }
-    if ((parity == 'o') || (parity == 'O')) {
-        *c_cflag |= PARENB;
-        *c_cflag |= PARODD;
-        return 1;
+    switch (parity) {
+        case 'n':
+        case 'N':
+            *c_cflag &= ~PARENB;
+            return 1;
+
+        case 'e':
+        case 'E':
+            *c_cflag |= PARENB;
+            *c_cflag &= ~PARODD;
+            return 1;
+
+        case 'o':
+        case 'O':
+            *c_cflag |= PARENB;
+            *c_cflag |= PARODD;
+            return 1;
+
+        default:
+            break;
     }
     return 0;
 }
