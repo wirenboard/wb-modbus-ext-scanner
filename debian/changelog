@@ -2,7 +2,7 @@ wb-modbus-ext-scanner (1.4.0) stable; urgency=medium
 
   * Add parity
 
- -- nikita <n.kulikov@wirenboard.ru>  Tue, 11 Jun 2024 13:09:29 +0300
+ -- nikita <n.kulikov@wirenboard.com>  Tue, 22 Jul 2025 14:43:00 +0300
 
 wb-modbus-ext-scanner (1.3.0) stable; urgency=medium
 
