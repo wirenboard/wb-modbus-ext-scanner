@@ -392,30 +392,29 @@ int check_baud_get_setting(int param)
     return valueIsIn;
 }
 
-int check_parity_set_setting(char parity, tcflag_t * c_cflag)
+int check_parity_get_setting(char parity, enum sp_parity * sp_parity)
 {
     switch (parity) {
         case 'n':
         case 'N':
-            *c_cflag &= ~PARENB;
-            return 1;
+            *sp_parity = SP_PARITY_NONE;
+            break;
 
         case 'e':
         case 'E':
-            *c_cflag |= PARENB;
-            *c_cflag &= ~PARODD;
-            return 1;
+            *sp_parity = SP_PARITY_EVEN;
+            break;
 
         case 'o':
         case 'O':
-            *c_cflag |= PARENB;
-            *c_cflag |= PARODD;
-            return 1;
+            *sp_parity = SP_PARITY_ODD;
+            break;
 
         default:
+            return 0;
             break;
     }
-    return 0;
+    return 1;
 }
 
 int configure_tty(int baud, char parity)
@@ -433,28 +432,23 @@ int configure_tty(int baud, char parity)
         return -1;
     }
 
-    tty.c_iflag = 0;
-    tty.c_oflag = 0;
-    tty.c_cflag = 0x1CB2;
-    tty.c_lflag = 0;
-
-
-    if (check_parity_set_setting(parity, &tty.c_cflag)) {
+    enum sp_parity sp_parity;
+    if (check_parity_get_setting(parity, &sp_parity)) {
         if (debug) {
             printf("Using parity %c\n", parity);
         }
     } else {
         printf("Parity %c is not supported!\n", parity);
         return -1;
-    };
+    }
 
-    cfsetospeed(&tty,(speed_t)baud_setting);
-    cfsetispeed(&tty,(speed_t)baud_setting);
+    result = sp_set_parity(port, sp_parity);
 
-    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
-        printf("Error from tcsetattr: %s\n", strerror(errno));
+    if (result != SP_OK) {
+        printf("Error from sp_set_parity: %s\n", sp_last_error_message());
         return -1;
     }
+
     long nsec = 1000000000 / baud;
 
     // 12 бит в одном фрейме
