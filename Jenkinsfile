@@ -2,6 +2,7 @@ buildDebSbuild(
     defaultTargets: 'bullseye-armhf bullseye-arm64 bullseye-host',
     repos: ['release', 'devTools'],
     defaultRunLintian: true,
+    releaseFilesFilter: "**/*.deb, **/*.exe",
     customBuildSteps: {
         stage("Build win32") {
             dir("$PROJECT_SUBDIR") {
