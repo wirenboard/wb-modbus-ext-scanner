@@ -1,5 +1,5 @@
 buildDebSbuild(
-    defaultTargets: 'trixie-armhf trixie-arm64 trixie-host',
+    defaultTargets: 'current-armhf current-arm64 current-host',
     repos: ['release', 'devTools'],
     defaultRunLintian: true,
     releaseFilesFilter: "**/*.deb, **/*.exe",
