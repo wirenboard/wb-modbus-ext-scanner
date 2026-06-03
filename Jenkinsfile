@@ -1,5 +1,5 @@
 buildDebSbuild(
-    defaultTargets: 'bullseye-armhf bullseye-arm64 bullseye-host',
+    defaultTargets: 'current-armhf current-arm64 current-host',
     repos: ['release', 'devTools'],
     defaultRunLintian: true,
     releaseFilesFilter: "**/*.deb, **/*.exe",
