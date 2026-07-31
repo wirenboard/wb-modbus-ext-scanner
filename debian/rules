@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
-export USE_SYSTEM_LIBS := 1
+MAKEFLAGS += USE_SYSTEM_LIBS=1
 
 %:
 	dh $@

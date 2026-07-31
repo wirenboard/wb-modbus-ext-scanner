@@ -8,8 +8,6 @@ wb-modbus-ext-scanner (1.4.0+wb100) stable; urgency=medium
     waiting forever
   * Backport from 1.5.1: check the address in a response to avoid matching
     a false frame start
-  * Build against the system libserialport again, the package failed to build
-    otherwise
 
  -- Pavel Gasheev <pavel.gasheev@wirenboard.com>  Fri, 31 Jul 2026 15:00:00 +0300
 
