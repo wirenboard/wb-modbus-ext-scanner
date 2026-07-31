@@ -1,3 +1,16 @@
+wb-modbus-ext-scanner (1.4.0+wb100) stable; urgency=medium
+
+  * Backport from 1.5.1: disable XON/XOFF flow control on the serial port,
+    it silently dropped 0x11 and 0x13 bytes from responses
+  * Backport from 1.5.1: set data bits and stop bits explicitly instead of
+    inheriting them
+  * Backport from 1.5.1: wait for a response with a timeout instead of
+    waiting forever
+  * Backport from 1.5.1: check the address in a response to avoid matching
+    a false frame start
+
+ -- Pavel Gasheev <pavel.gasheev@wirenboard.com>  Fri, 31 Jul 2026 15:00:00 +0300
+
 wb-modbus-ext-scanner (1.4.0) stable; urgency=medium
 
   * Add parity
