@@ -237,18 +237,47 @@ const cmd_len_desc_t * get_cmd_len_desc(uint8_t cmd, int is_ext)
     return NULL;
 }
 
+/*
+    Проверяет адрес в ответе. Адрес зависит от субкоманды: на сканирование и на
+    завёрнутую стандартную команду устройства отвечают с широковещательного
+    адреса, а события и настройку событий передают со своего адреса.
+*/
+int check_responce_address(uint8_t address, uint8_t sub_cmd)
+{
+    switch (sub_cmd) {
+        case CMD_EXT_SCAN_RESP:
+        case CMD_EXT_SCAN_END:
+        case CMD_EXT_EVENTS_END:
+        case CMD_EXT_STD_PDU_RESP:
+            return address == SPECIAL_ADDRESS;
+
+        case CMD_EXT_EVENTS_RESP:
+        case CMD_EXT_EVENTS_CTRL:
+            return (address >= 1) && (address <= 247);
+    }
+    return 0;
+}
+
 int check_cmd_in_rx_buffer(uint8_t * buf, int available_len)
 {
+    // для разбора заголовка нужны адрес, команда и субкоманда
+    if (available_len < 3) {
+        return 0;
+    }
+
     // вся утилита работает только с расширенными ответами
     if ((buf[1] != SPECIAL_CMD) && (buf[1] != SPECIAL_CMD_LEGACY)) {
         return 0;
     }
 
-    if (available_len < 2) {
+    uint8_t cmd = buf[2];
+
+    // Без проверки адреса скользящее окно в read_responce ловит ложное начало
+    // кадра на байте 0x46 или 0x60 внутри полезной нагрузки чужого ответа.
+    if (!check_responce_address(buf[0], cmd)) {
         return 0;
     }
 
-    uint8_t cmd = buf[2];
     int is_ext = 1;
     int additional_len = 0;
 
