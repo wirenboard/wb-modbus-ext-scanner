@@ -18,6 +18,14 @@
 #define READ_LEN                    16
 #define RESPONCE_MIN_LEN            4
 
+// максимальная длина пакета по стандарту modbus и максимальная длина
+// префикса из байтов 0xFF, который устройства передают во время арбитража
+#define RTU_MAX_FRAME_BYTES         256
+#define ARBITRATION_MAX_BYTES       32
+
+// количество арбитражных окон в сканировании: 32 бита арбитража + запас
+#define ARBITRATION_WINDOWS         33
+
 #define SPECIAL_ADDRESS             0xFD
 #define SPECIAL_CMD                 0x46
 #define SPECIAL_CMD_LEGACY          0x60
@@ -49,6 +57,9 @@ struct timespec byte_send_time;
 uint8_t rx_buf[BUFFER_SIZE];
 uint8_t tx_buf[BUFFER_SIZE];
 
+// время ожидания ответа, считается в configure_tty по скорости и команде
+uint64_t response_timeout_us = 1000000;
+
 #if defined(_WIN32)
 #include <windows.h>
 
@@ -60,12 +71,24 @@ void delay_send(int len)
     do { }
     while (GetTickCount64() - StartTime <= byte_timeout_ms);
 }
+
+uint64_t now_us(void)
+{
+    return (uint64_t)GetTickCount64() * 1000;
+}
 #else // _WIN32
 void delay_send(int len)
 {
     for (int i = 0; i < len; i++) {
         nanosleep(&byte_send_time, NULL);
     }
+}
+
+uint64_t now_us(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 }
 #endif
 
@@ -268,14 +291,16 @@ int check_cmd_in_rx_buffer(uint8_t * buf, int available_len)
 int read_responce(uint8_t ** ptr)
 {
     uint8_t * rb = rx_buf;
+    uint64_t deadline = now_us() + response_timeout_us;
+    int crc_error = 0;
+    int data_len = 0;
 
-    while (1) {
+    while (now_us() < deadline) {
         int rdlen = sp_nonblocking_read(port, rb, READ_LEN);
         if (rdlen > 0) {
-            // print_hb("   <! ", rb, rdlen);
             rb += rdlen;
 
-            int data_len = rb - rx_buf;
+            data_len = rb - rx_buf;
 
             if (data_len > (BUFFER_SIZE - READ_LEN)) {
                 printf("Error buffer overload\n");
@@ -288,28 +313,38 @@ int read_responce(uint8_t ** ptr)
 
                     int available_len = data_len - i;
                     int len = check_cmd_in_rx_buffer(resp, available_len);
-                    if (len) {
-                        if (len <= available_len) {
+                    if (len && (len <= available_len)) {
+                        if (modbus_crc(resp, len - 2) == u16_from_le_buf8(&resp[len - 2])) {
                             if (debug) {
                                 print_hb("    <-", rx_buf, data_len);
                             }
-                            if (modbus_crc(resp, len - 2) == u16_from_le_buf8(&resp[len - 2])) {
-                                *ptr = resp;
-                                return len;
-                            } else {
-                                printf("error: wrong crc\n");
-                                return 0;
-                            }
+                            *ptr = resp;
+                            return len;
                         }
+                        // совпадение по началу кадра может оказаться случайным,
+                        // например внутри данных другого ответа - ищем дальше
+                        crc_error = 1;
                     }
                 }
             }
 
         } else if (rdlen < 0) {
             printf("Error from read: %d: %s\n", rdlen, strerror(errno));
+            return 0;
         } else {
-            // printf("Timeout from read\n");
+            // данные копятся в буфере ядра, опрашивать чаще чем раз в символ незачем
+            delay_send(1);
         }
+    }
+
+    if (data_len == 0) {
+        printf("error: response timeout, no data on the bus\n");
+    } else if (crc_error) {
+        printf("error: response timeout, wrong crc\n");
+        print_hb("    <-", rx_buf, data_len);
+    } else {
+        printf("error: response timeout, frame is incomplete or not recognized\n");
+        print_hb("    <-", rx_buf, data_len);
     }
     return 0;
 }
@@ -417,7 +452,50 @@ int check_parity_get_setting(char parity, enum sp_parity * sp_parity)
     return 1;
 }
 
-int configure_tty(int baud, char parity)
+// время передачи заданного количества бит в микросекундах, с округлением вверх
+long bits_us(int baud, int bits)
+{
+    return (long)((1000000LL * bits + baud - 1) / baud);
+}
+
+/*
+    Время ожидания ответа считается по спецификации протокола, см. docs/protocol.ru.md
+
+        0x46:   max(3.5 символа, 20 бит + 800 мкс) + N * max(13 бит, 12 бит + 50 мкс)
+        0x60:   44 бита + N * 20 бит       (устаревшие правила арбитража)
+
+    К этому добавляется время приёма самого длинного пакета вместе с префиксом
+    арбитража и запас на задержку ответа устройства.
+*/
+void set_response_timeout(int baud, uint8_t ext_cmd)
+{
+    long arbitration_start;
+    long window;
+
+    if (ext_cmd == SPECIAL_CMD_LEGACY) {
+        arbitration_start = bits_us(baud, 44);
+        window = bits_us(baud, 20);
+    } else {
+        long silence = bits_us(baud, 35);
+        long processing = bits_us(baud, 20) + 800;
+        arbitration_start = (silence > processing) ? silence : processing;
+
+        long window_min = bits_us(baud, 13);
+        long window_irq = bits_us(baud, 12) + 50;
+        window = (window_min > window_irq) ? window_min : window_irq;
+    }
+
+    response_timeout_us = arbitration_start
+                        + ARBITRATION_WINDOWS * window
+                        + bits_us(baud, 10 * (RTU_MAX_FRAME_BYTES + ARBITRATION_MAX_BYTES))
+                        + 50000;
+
+    if (debug) {
+        printf("Response timeout %lu ms\n", (unsigned long)(response_timeout_us / 1000));
+    }
+}
+
+int configure_tty(int baud, char parity, uint8_t ext_cmd)
 {
     if (check_baud_get_setting(baud)) {
         printf("Using baud %d\n", baud);
@@ -456,7 +534,6 @@ int configure_tty(int baud, char parity)
         На контроллерах Wiren Board IXON на последовательном порту включён по
         умолчанию, и wb-mqtt-serial возвращает исходные настройки порта при
         остановке - то есть сразу после его остановки IXON снова включён.
-        sp_open() эти биты не трогает, несмотря на обещание raw-канала.
 
         RTS/DTR при этом не трогаем: направлением передачи RS-485 управляет
         драйвер ядра, поэтому sp_set_flowcontrol здесь использовать нельзя.
@@ -495,10 +572,12 @@ int configure_tty(int baud, char parity)
     // выбросить всё, что осталось в буферах от предыдущего владельца порта
     sp_flush(port, SP_BUF_BOTH);
 
+    set_response_timeout(baud, ext_cmd);
+
     return 0;
 }
 
-void tool_scan(uint8_t ext_cmd)
+int tool_scan(uint8_t ext_cmd)
 {
     struct {
         uint32_t serial;
@@ -508,7 +587,8 @@ void tool_scan(uint8_t ext_cmd)
     typedef struct {
         uint32_t serial;
         uint8_t id;
-        char model[20];
+        // регистры 200..219, строка может занимать их целиком, нужно место под ноль
+        char model[21];
         uint32_t fwver;
     } dev_info_t;
 
@@ -529,7 +609,11 @@ void tool_scan(uint8_t ext_cmd)
         int len = read_responce(&r);
 
         if (len == 0) {
-            continue;
+            // Устройство считает себя отсканированным сразу после отправки ответа,
+            // поэтому потерянный ответ означает потерянное устройство - продолжать
+            // сканирование смысла нет, о неполном результате надо сообщить явно.
+            printf("ERROR: no answer for scan request, scan is incomplete\n");
+            return -1;
         }
 
         if (r[2] == CMD_EXT_SCAN_END) {
@@ -544,6 +628,11 @@ void tool_scan(uint8_t ext_cmd)
 
             dev_info.serial = u32_from_be_buf8(&r[3]);
             dev_info.id = r[PAYLOAD_EXT_OFFSET];
+
+            if (dn >= DEVICES_MAX) {
+                printf("ERROR: more than %d devices on the bus, scan stopped\n", DEVICES_MAX);
+                return -1;
+            }
 
             int rpt = 0;
             for (int i = 0; i < dn; i++) {
@@ -575,9 +664,11 @@ void tool_scan(uint8_t ext_cmd)
 
             printf("\r\n");
         } else {
-            printf("ERROR: responce type %d", r[2]);
+            printf("ERROR: responce type %d\n", r[2]);
+            return -1;
         }
     }
+    return 0;
 }
 
 void tool_change_id(uint8_t ext_cmd, uint32_t sn, int new_id)
@@ -638,6 +729,10 @@ void tool_event(uint8_t min_slave, uint8_t max_event_len, uint8_t confirm_slave_
     struct ext_modbus_event_resp * resp;
     fflush(stdout);
     int len = read_responce((uint8_t **)&resp);
+
+    if (len == 0) {
+        return;
+    }
 
     if (resp->sub_cmd == CMD_EXT_EVENTS_END) {
         if (debug) {
@@ -744,6 +839,10 @@ void print_help(const char* argv0)
 
 int main(int argc, char *argv[])
 {
+    // построчная буферизация: иначе при прерывании утилиты (в том числе по таймауту
+    // в скрипте) вывод, накопленный в буфере, теряется целиком
+    setvbuf(stdout, NULL, _IOLBF, 0);
+
     if (argc == 1) {
         print_help(argv[0]);
         return EXIT_INVALIDARGUMENT;
@@ -847,7 +946,7 @@ int main(int argc, char *argv[])
         return EXIT_INVALIDARGUMENT;
     }
 
-    if (configure_tty(baud, parity) != 0) {
+    if (configure_tty(baud, parity, ext_cmd) != 0) {
         return EXIT_FAILURE;
     }
 
@@ -889,7 +988,9 @@ int main(int argc, char *argv[])
         }
     } else {
         // scan function
-        tool_scan(ext_cmd);
+        if (tool_scan(ext_cmd) != 0) {
+            return EXIT_FAILURE;
+        }
     }
 
     return EXIT_SUCCESS;
