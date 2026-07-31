@@ -1,3 +1,13 @@
+wb-modbus-ext-scanner (1.5.1) stable; urgency=medium
+
+  * Disable XON/XOFF flow control on the serial port, it silently dropped
+    0x11 and 0x13 bytes from responses
+  * Set data bits and stop bits explicitly instead of inheriting them
+  * Wait for a response with a timeout instead of waiting forever
+  * Check the address in a response to avoid matching a false frame start
+
+ -- Pavel Gasheev <pavel.gasheev@wirenboard.com>  Fri, 31 Jul 2026 12:20:00 +0300
+
 wb-modbus-ext-scanner (1.5.0) stable; urgency=medium
 
   * Port for Debian 13
