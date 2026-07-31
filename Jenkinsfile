@@ -1,5 +1,6 @@
 buildDebSbuild(
     defaultTargets: 'bullseye-armhf bullseye-arm64 bullseye-host',
+    defaultWbdevImage: 'contactless/devenv:latest_bullseye',
     repos: ['release', 'devTools'],
     defaultRunLintian: true,
     customBuildSteps: {
