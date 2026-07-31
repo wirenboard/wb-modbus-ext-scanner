@@ -432,6 +432,41 @@ int configure_tty(int baud, char parity)
         return -1;
     }
 
+    // Открытие порта не задаёт эти параметры, без явной установки они достаются
+    // в наследство от предыдущего владельца порта или от настроек по умолчанию.
+    result = sp_set_bits(port, 8);
+    if (result != SP_OK) {
+        printf("Error from sp_set_bits: %s\n", sp_last_error_message());
+        return -1;
+    }
+
+    result = sp_set_stopbits(port, 1);
+    if (result != SP_OK) {
+        printf("Error from sp_set_stopbits: %s\n", sp_last_error_message());
+        return -1;
+    }
+
+    /*
+        Программное управление потоком обязательно должно быть выключено.
+        При включённом IXON драйвер tty забирает из принимаемых данных байты
+        0x11 (XON) и 0x13 (XOFF) и не отдаёт их приложению. Modbus передаёт
+        произвольные двоичные данные, поэтому такой байт где угодно в пакете
+        (в том числе в CRC) приводит к потере ответа.
+
+        На контроллерах Wiren Board IXON на последовательном порту включён по
+        умолчанию, и wb-mqtt-serial возвращает исходные настройки порта при
+        остановке - то есть сразу после его остановки IXON снова включён.
+        sp_open() эти биты не трогает, несмотря на обещание raw-канала.
+
+        RTS/DTR при этом не трогаем: направлением передачи RS-485 управляет
+        драйвер ядра, поэтому sp_set_flowcontrol здесь использовать нельзя.
+    */
+    result = sp_set_xon_xoff(port, SP_XONXOFF_DISABLED);
+    if (result != SP_OK) {
+        printf("Error from sp_set_xon_xoff: %s\n", sp_last_error_message());
+        return -1;
+    }
+
     enum sp_parity sp_parity;
     if (check_parity_get_setting(parity, &sp_parity)) {
         if (debug) {
@@ -456,6 +491,9 @@ int configure_tty(int baud, char parity)
 
     byte_send_time.tv_sec = 0;
     byte_send_time.tv_nsec = nsec;
+
+    // выбросить всё, что осталось в буферах от предыдущего владельца порта
+    sp_flush(port, SP_BUF_BOTH);
 
     return 0;
 }
