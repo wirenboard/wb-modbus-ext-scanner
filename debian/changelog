@@ -1,4 +1,4 @@
-wb-modbus-ext-scanner (1.6.0) stable; urgency=medium
+wb-modbus-ext-scanner (1.5.1) stable; urgency=medium
 
   * Disable XON/XOFF flow control on the serial port, it silently dropped
     0x11 and 0x13 bytes from responses
