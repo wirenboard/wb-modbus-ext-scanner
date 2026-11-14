@@ -531,7 +531,7 @@ _Event Request and Response Process_
 
 ### Event Acknowledgment
 
-To ensure reliable event delivery, the Fast Modbus extension includes an acknowledgment mechanism. Each event packet contains a **flag field** (0 or 1). Slaves invert this flag in each subsequent packet they send, ensuring no two consecutive packets from the same device have the same flag. Flags are independent between devices.
+To ensure reliable event delivery, the Fast Modbus extension includes an acknowledgment mechanism. Each event packet contains a **flag field** (0 or 1). The slave keeps its current flag and puts it into every packet. A confirmation with the slave's address and this flag toggles it, even if there was nothing to clear. As long as the master confirms only the packets it has received, no two different consecutive packets from the same device have the same flag. Flags are independent between devices. The exact rules are in the protocol description, section [Event confirmation](protocol.en.md#event-confirmation).
 
 When the master receives an event packet, it sends another broadcast event request, including the Modbus address of the device to acknowledge and the flag from the received packet. If no acknowledgment is needed, the master sets the device address field to 0.
 
@@ -677,7 +677,7 @@ FD 46 10 00 FF 00 00 C8 9A
 - `0x46` — command for extended functions;
 - `0x10` — subcommand for event requests;
 - `0x00` — minimum Modbus address for arbitration;
-- `0xFF` — maximum event data length (256 bytes);
+- `0xFF` — maximum event data length (255 bytes). The whole `0x11` packet fits in 256 bytes, so the device puts at most 248 bytes of events into it;
 - `0x00` — address of the device from which the previous event packet was received.  
   Needed to confirm delivery; since we have nothing to confirm, it's set to zero;
 - `0x00` — flag to confirm previously received packets (none);
@@ -747,7 +747,7 @@ FD 46 10 00 FF F1 00 8D 0A
 - `0x46` — command for extended functions;
 - `0x10` — subcommand for event requests;
 - `0x00` — minimum Modbus address for arbitration;
-- `0xFF` — maximum event data length (256 bytes);
+- `0xFF` — maximum event data length (255 bytes);
 - `0xF1` — device address for confirmation (241);
 - `0x00` — flag for confirmation;
 - `0x8D 0x0A` — checksum.
@@ -815,7 +815,7 @@ FD 46 10 00 FF 14 00 C7 9A
 - `0x46` — command for extended functions;
 - `0x10` — subcommand for event requests;
 - `0x00` — minimum Modbus address for arbitration;
-- `0xFF` — maximum event data length (256 bytes);
+- `0xFF` — maximum event data length (255 bytes);
 - `0x14` — device address for confirmation (20);
 - `0x00` — flag for confirmation;
 - `0xC7 0x9A` — checksum.

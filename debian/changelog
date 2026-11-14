@@ -1,3 +1,13 @@
+wb-modbus-ext-scanner (1.5.2) stable; urgency=medium
+
+  * Describe in the protocol docs the request address of every sub-command,
+    the 0x08 frame limits, the 0x11 unreset events count, the packet flag,
+    how a packet is filled and how 0x18 settings are applied
+  * Align the article with them: the packet flag rule and the 0x10 event
+    data limit (255 bytes, at most 248 in a packet)
+
+ -- Ilia Skochilov <ilia.skochilov@wirenboard.com>  Fri, 13 Nov 2026 16:14:06 +0300
+
 wb-modbus-ext-scanner (1.5.1) stable; urgency=medium
 
   * Disable XON/XOFF flow control on the serial port, it silently dropped
