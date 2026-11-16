@@ -1,5 +1,6 @@
 # Table of contents
 - [MODBUS WIRENBOARD EXTENSION](#modbus-wirenboard-extension)
+     - [Request address](#request-address)
      - [Bus scan](#bus-scan)
        - [Scan start function - 0x01](#Scan-start-function---0x01)
        - [Continue scanning function - 0x02](#continue-scanning-function---0x02)
@@ -38,6 +39,22 @@ If the scanning algorithm or its timing characteristics change, a new subcommand
 
 It was observed that some devices, such as WB-MS, may respond to the broadcast address (`0`) with an unknown command type. To prevent this, extended mode operates through the reserved address `0xFD`.
 
+## Request address
+
+A device accepts each subcommand only at the address given in the table. It neither executes nor answers a frame sent to any other address.
+
+| Subcommand | Command | Request address | Response |
+|---|---|---|---|
+| `0x01`, `0x02` – scan | `0x46` or `0x60` | `0xFD` | `0x03` or `0x04` to `0xFD` after arbitration |
+| `0x08` – standard command by serial number | `0x46` or `0x60` | `0xFD` | `0x09` to `0xFD` from the device with this serial number |
+| `0x10` – event request | `0x46` | `0xFD` | `0x11` with the device address, or `0x12` to `0xFD`, after arbitration |
+| `0x18` – event configuration | `0x46` | device address | `0x18` with the device address |
+| `0x18` – event configuration | `0x46` | `0` | none, the setting is applied on every device |
+
+The response carries the same command as the request: a `0x60` request gets a `0x60` response.
+
+> Devices with older firmware accept `0x46` and `0x60` frames at any of the addresses `0`, `0xFD` and their own, and answer them, except `0x18` at address `0`. A client must not rely on this.
+
 ## Bus scan
 
 After powering on, the device assumes it has not been scanned. Only devices that consider themselves unscanned can be scanned. To reset the scan status, the scan start function `0x01` is used. Once a device responds with `0x03`, it marks itself as scanned and will only respond with `0x04` (end of scan) if it wins arbitration again—indicating that no unscanned devices remain on the bus.
@@ -48,9 +65,9 @@ Upon receiving this command, devices reset their scan status and consider themse
 
 The command format:
 
-- (1 byte) `0xFD` – broadcast address  
-- (1 byte) `0x46` – command for extended functions  
-- (1 byte) `0x01` – subcommand to start scanning  
+- (1 byte) `0xFD` – broadcast address
+- (1 byte) `0x46` – command for extended functions
+- (1 byte) `0x01` – subcommand to start scanning
 - (2 bytes) checksum
 
 Example:
@@ -65,10 +82,10 @@ The client can continue scanning the bus by sending this command. Devices that h
 
 The command format:
 
-- (1 byte) `0xFD` – broadcast address  
-- (1 byte) `0x46` – command for extended functions  
-- (1 byte) `0x02` – subcommand for scanning one device  
-- (2 bytes) checksum  
+- (1 byte) `0xFD` – broadcast address
+- (1 byte) `0x46` – command for extended functions
+- (1 byte) `0x02` – subcommand for scanning one device
+- (2 bytes) checksum
 
 Example:
 ```
@@ -79,12 +96,12 @@ Example:
 
 After 3.5 frames of silence on the bus, all devices receive the command — regardless of the response delay setting — and arbitration occurs. This arbitration appears as periodic bytes with the value `0xFF` being sent on the bus. After arbitration, the devices decide which one will transmit information and determine whether any devices remain unscanned. The device that wins arbitration sends a packet with its information using the following structure:
 
-- (1 byte) `0xFD` – broadcast address  
-- (1 byte) `0x46` – command for extended functions  
-- (1 byte) `0x03` – subcommand for scan response  
-- (4 bytes) device serial number (big endian)  
-- (1 byte) modbus device address  
-- (2 bytes) checksum  
+- (1 byte) `0xFD` – broadcast address
+- (1 byte) `0x46` – command for extended functions
+- (1 byte) `0x03` – subcommand for scan response
+- (4 bytes) device serial number (big endian)
+- (1 byte) modbus device address
+- (2 bytes) checksum
 
 Example:
 ```
@@ -100,9 +117,9 @@ Between scanning requests, the client can execute any command—for example, rea
 The client repeats the scan request until all devices are found. If no new devices remain, the device with the lowest serial number will respond, indicating that there are no new devices. This approach prevents the client from having to wait for a timeout.
 
 The command format:
-- (1 byte) `0xFD` – broadcast address  
-- (1 byte) `0x46` – command for extended functions  
-- (1 byte) `0x04` – subcommand indicating scanning completion  
+- (1 byte) `0xFD` – broadcast address
+- (1 byte) `0x46` – command for extended functions
+- (1 byte) `0x04` – subcommand indicating scanning completion
 - (2 bytes) checksum
 
 Example:
@@ -125,10 +142,10 @@ Initially, there may be devices on the bus with the same addresses. Therefore, d
 For the scan command (`0x60`), legacy arbitration rules apply: the window duration is 20 bits at the current baud rate, and arbitration begins 44 bits (3.5 bytes) after the last received request byte.
 
 Scanning one device takes the following interval:
-- (5 bytes × 10 bits per byte) for the request  
-- plus 44 bits of wait time for a response  
-- plus ((28 + 4) arbitration fields × 20 bits per arbitration window)  
-- plus (10 bytes × 10 bits per byte) for the response  
+- (5 bytes × 10 bits per byte) for the request
+- plus 44 bits of wait time for a response
+- plus ((28 + 4) arbitration fields × 20 bits per arbitration window)
+- plus (10 bytes × 10 bits per byte) for the response
 
 This totals 834 bits, which, at a speed of 115200, lasts approximately 7.5 ms.
 
@@ -142,14 +159,14 @@ If multiple devices share the same Modbus address, you cannot operate with them 
 
 ### Standard command sending function - 0x08
 
-- (1 byte) `0xFD` broadcast address  
-- (1 byte) `0x46` command for working with extended functions  
-- (1 byte) `0x08` subcommand for emulating standard requests  
+- (1 byte) `0xFD` broadcast address
+- (1 byte) `0x46` command for working with extended functions
+- (1 byte) `0x08` subcommand for emulating standard requests
 - (4 bytes) serial number of the device we are accessing (big endian)  
-   --- normal PDU ---  
+   --- normal PDU ---
 - (1 byte) standard code for the function of working with registers (1-4, 5, 6, 15, 16)  
    ...request body  
-   --- normal request ---  
+   --- normal request ---
 - (2 bytes) checksum
 
 Example:
@@ -157,24 +174,33 @@ Example:
 -> FD 46 08 00 01 EB 37 03 00 C8 00 14 5B 07
 ```
 
+The embedded PDU follows the limits of the Modbus standard: up to 2000 bits for FC01 and FC02, up to 125 registers for FC03 and FC04, up to 1968 bits for FC0F, up to 123 registers for FC10. A request beyond them gets an exception, as an ordinary request does.
+
+The device leaves unanswered:
+
+- a `0x08` frame longer than 265 bytes;
+- a frame without an embedded PDU – exactly 9 bytes: address, command, subcommand, serial number and checksum.
+
 ### Standard command response function - 0x09
 
 As a result, the device responds with the following packet:
 
-- (1 byte) `0xFD` – broadcast address  
-- (1 byte) `0x46` – command for working with extended functions  
-- (1 byte) `0x09` – subcommand for emulating standard requests  
+- (1 byte) `0xFD` – broadcast address
+- (1 byte) `0x46` – command for working with extended functions
+- (1 byte) `0x09` – subcommand for emulating standard requests
 - (4 bytes) serial number of the device we are accessing (big endian)  
-   --- normal PDU ---  
+   --- normal PDU ---
 - (1 byte) standard function code for working with registers (1-4, 5, 6, 15, 16)  
    ... response body  
-   --- normal request ---  
+   --- normal request ---
 - (2 bytes) checksum
 
 Example:
 ```
 <- FD 46 09 00 01 EB 37 03 28 00 57 00 42 00 4D 00 53 00 57 0034 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 30 4F
 ```
+
+The longest `0x09` response is 261 bytes, for example to a read of 125 registers or 2000 bits. It is longer than a standard RTU frame (256 bytes), and the client must be ready to receive it.
 
 ## How arbitration works
 
@@ -218,14 +244,14 @@ The following functions are provided for event polling: `event query`, `event tr
 
 ### Event Request Function - 0x10
 
-- (1 byte) `0xFD` – broadcast address  
-- (1 byte) `0x46` – command for working with extended functions  
-- (1 byte) `0x10` – subcommand: request events from devices  
-- (1 byte) Minimum server ID from which to start responding  
-- (1 byte) Maximum length of the data field with events that the client expects; according to the standard, the entire packet should not exceed 256 bytes.  
-- (1 byte) `server_id` of the device from which the previous event packet was received  
-- (1 byte) Flag from the previously received packet to confirm reception (see below)  
-- (2 bytes) Checksum  
+- (1 byte) `0xFD` – broadcast address
+- (1 byte) `0x46` – command for working with extended functions
+- (1 byte) `0x10` – subcommand: request events from devices
+- (1 byte) Minimum server ID from which to start responding
+- (1 byte) Maximum length of the data field with events that the client expects; according to the standard, the entire packet should not exceed 256 bytes.
+- (1 byte) `server_id` of the device from which the previous event packet was received
+- (1 byte) Flag from the previously received packet to confirm reception (see below)
+- (2 bytes) Checksum
 
 If the specified maximum length of the data field does not fit a single event, the response will be sent without a payload (list of events); in that case, only the number of new events can be determined.
 
@@ -239,36 +265,38 @@ An example without a `server_id` limit, with an event field length of 100 bytes:
 
 ### Event transfer function - 0x11
 
-- (1 byte) `server_id` device  
-- (1 byte) `0x46` command for working with extended functions  
-- (1 byte) `0x11` subcommand – transmission of events from the device  
-- (1 byte) flag of this packet to confirm receipt (see below)  
-- (1 byte) number of unreset events  
-- (1 byte) length of the data field of all events in bytes before the controlamounts  
+- (1 byte) `server_id` device
+- (1 byte) `0x46` command for working with extended functions
+- (1 byte) `0x11` subcommand – transmission of events from the device
+- (1 byte) flag of this packet to confirm receipt (see below)
+- (1 byte) number of unreset events
+- (1 byte) length of the data field of all events in bytes before the controlamounts
 - (4 or more bytes) event 1  
-   ...  
-- (4 or more bytes) event N  
+   ...
+- (4 or more bytes) event N
 - (2 bytes) checksum
 
 The event contains 4 or more bytes and has the following format:
 
-- (1 byte) Length of additional event data  
-- (1 byte) Event type  
-- (2 bytes) Event identifier (big endian)  
+- (1 byte) Length of additional event data
+- (1 byte) Event type
+- (2 bytes) Event identifier (big endian)
 - (0 or more bytes) Additional event data (little endian format)
 
-**Example:** A device with address `5` responds with an event indicating a change in input register `0x01D0` with a new value of `4`. One event remains unsent, and the packet confirmation flag is set.
+**Example:** A device with address `5` responds with an event indicating a change in input register `0x01D0` with a new value of `4`. The packet confirmation flag is set, and the count of unreset events is 1: the event in this packet.
 ```
 <- 05 46 11 01 01 06 02 04 01 D0 04 00 XX XX
 ```
+
+The count of unreset events is how many events the device still holds: the events of this packet, which wait for confirmation, and the events that wait to be sent. One event can be counted twice. This happens when the register changed after the event was sent but before the confirmation, and the event is not in this packet: the sent value waits for confirmation and the new one waits to be sent. So the count can exceed the number of distinct events.
 
 ### Response function if there are no events – 0x12
 
 This packet is sent by the device that wins the arbitration (lowest priority token + `server_id`).
 
-- (1 byte) `0xFD` – broadcast address  
-- (1 byte) `0x46` – command for working with extended functions  
-- (1 byte) `0x12` – subcommand: no events  
+- (1 byte) `0xFD` – broadcast address
+- (1 byte) `0x46` – command for working with extended functions
+- (1 byte) `0x12` – subcommand: no events
 - (2 bytes) checksum
 
 Example:
@@ -281,6 +309,12 @@ The cycle of an event request and device response for one event with 2 bytes of 
 The polling cycle can begin after the completion of any command, including the server's response. The cycle starts with the client sending a packet containing the `0x10` event request command. If there is nothing to confirm, set the confirmation field to the 0 address 0 flag.
 
 Devices conduct arbitration over the standard 3.5 frames (see description below). If some devices have events to report, the device that wins arbitration responds with a packet using the `0x11` command, transmitting a list of events. Each event includes an identifier, a type, and optionally additional data. According to the standard, the maximum packet size is 256 bytes. If the events do not fit into a single packet, the device will continue to win arbitration on the next request and transmit the remaining events.
+
+The device fills a packet as follows:
+
+- high priority events first, then low priority ones; the order of events of the same priority is not defined;
+- an event that does not fit into the remaining space is skipped, and the device tries the next ones. The space is set by the maximum data field length in the request. Shorter events may still get into the packet after a skipped one, low priority ones included;
+- a skipped event waits for the next request.
 
 Afterwards, the client can repeat the cycle and request events again.
 
@@ -323,7 +357,16 @@ Thus, it is possible to reduce the waiting time from 12 arbitration windows to 9
 
 Delivery guarantee is implemented by a procedure that confirms the receipt of event packets for each device.
 
-Each event packet includes a flag field carrying a package number with a value of 0 or 1. Every subsequent packet from the same device toggles the flag to the opposite value relative to the previous one. Thus, no two consecutive packets from the same device will have the same flag value. Flags from different devices are independent.
+Each event packet includes a flag field carrying a package number with a value of 0 or 1. The device keeps the current flag and puts it into every packet.
+
+A confirmation with the device's own `server_id` and a flag equal to the current one does two things:
+
+- it resets the sent events. An event that occurred again after it was sent stays waiting to be sent with the new value;
+- it toggles the flag, even if there was nothing to reset.
+
+A confirmation with the other flag changes nothing: the unconfirmed packet comes again with the same flag.
+
+As long as the client confirms only the packets it has received, no two different consecutive packets from the same device have the same flag. Flags from different devices are independent.
 
 When the client correctly receives an event packet, it must acknowledge the receipt of the events to the device. The client must remember the last flag value for each device. In the next event request cycle, using the `0x10` request command, the client includes in the confirmation field the server ID of the device and the flag value that was specified in the previously received event packet. All devices receive this packet—even if they did not win the arbitration—and if a device sees its `server_id` in the confirmation field, it discards the previously sent batch of events (with the corresponding confirmation flag).
 
@@ -365,7 +408,7 @@ The enable event is of type `0x0F`, ID 0, with low priority.
 
 If the client has restarted and plans to configure all devices regardless, it can disable the sending of the enable event so as not to waste time receiving it during the next event request cycle.
 
-To work around the situation where a server may not receive a request packet from the client confirming its enable event, the sending of the enable event should be disabled during configuration—even if the event was just received.
+To work around the situation where a server may not receive a request packet from the client confirming its enable event, the sending of the enable event should be disabled during configuration—even if the event was just received. Disabling also drops an enable event that was already sent but not yet confirmed, so it will not come again.
 
 ### Event sending configuration function - 0x18
 
@@ -385,7 +428,7 @@ The event sending settings field has the following format:
 (1 byte) register type  
 (2 bytes) register address (big endian)  
 (1 byte) number of registers in a row  
-(N bytes) setting for each register, where 0 means event sending is not active, 1 enables low priority sending, and 2 enables high priority sending
+(N bytes) setting for each register, where 0 means event sending is not active, 1 enables low priority sending, and 2 enables high priority sending. Values 3–255 are reserved: a device that does not support such a value leaves the register setting unchanged and returns its current state in the status
 
 An example of enabling event sending when changing discrete registers 4 and 6 with low priority, as well as input registers 464, 466, and 473 with high priority on the device with address `0x0A`:
 
@@ -410,13 +453,13 @@ An example of enabling event sending when changing discrete registers 4 and 6 wi
 
 Response from device:
 
-- (1 byte) `server id` device address  
-- (1 byte) `0x46` control command for allowing event transmission  
-- (1 byte) `0x18` subcommand - controls the permission of transmission of register value change events  
-- (1 byte) length of the list of setting values  
+- (1 byte) `server id` device address
+- (1 byte) `0x46` control command for allowing event transmission
+- (1 byte) `0x18` subcommand - controls the permission of transmission of register value change events
+- (1 byte) length of the list of setting values
 - (M bytes) event sending enable flags for range 1  
-   ...  
-- (M bytes) event sending permission flags for range N  
+   ...
+- (M bytes) event sending permission flags for range N
 - (2 bytes) checksum
 
 In the response command, the register type, address, and number of registers in a row fields are omitted. Only bit masks containing the status of the event transmission configuration are included. The bits are packed similarly to the `0x01` command, from LSB to MSB with increasing event ID. The number of bytes is `(number of registers in a row / 8 rounded up)`. The bits are grouped into blocks, aligned on byte boundaries, repeating the ranges specified in the request. The bitmask format is little endian.
@@ -437,6 +480,15 @@ An example of a response to the command above for a device with address `0x0A`: 
     |  `-- command
     `-- server id
 ```
+
+How the device applies the settings:
+
+- **Address.** A command with the device address is executed and answered. A command to the broadcast address `0` is executed by every device, and none answers. A command to `0xFD` is not accepted.
+- **Status.** A status bit of 1 means event sending for the register is enabled with any priority. 0 means it is disabled or the device has no such event.
+- **Disabling and changing the priority.** Disabling (0) also drops the event from the sending queue, even if it was already sent and waits for confirmation: after disabling it will not come. Changing the priority keeps the event in the queue.
+- **A value spanning several registers**, for example a 32-bit value in two registers, has one event. Its setting is the byte of the value's first register. The device skips the bytes of the value's other registers and their status bit is 0, so the client may put 0 in them. If a block starts at a register other than the value's first one, that value is not configured, and the next value is the first to be configured.
+- **End of the address space.** A block range does not wrap past `0xFFFF`: there are no addresses beyond `0xFFFF`, their status bit is 0, and the block does not touch the registers at the start of the map.
+- **Broken list.** The blocks must fill the list exactly, and the list length must match the frame length. Otherwise, for example when the last block is truncated, the device does not answer and changes no setting, including those of the complete blocks before it.
 
 This format allows you to enable all the desired events in one `bus exchange` cycle, which greatly saves time and offers flexibility in situations where the firmware does not support all events.
 
