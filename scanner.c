@@ -49,6 +49,9 @@
 #define PAYLOAD_LEN_FIXED           0
 #define PAYLOAD_EXT_OFFSET          7
 
+#define MAX_EVENT_BLOCKS            16
+#define MAX_REGS_PER_BLOCK          256
+
 int debug = 0;
 
 struct sp_port *port = NULL;
@@ -795,32 +798,141 @@ void tool_event(uint8_t min_slave, uint8_t max_event_len, uint8_t confirm_slave_
     return;
 }
 
+typedef struct {
+    uint8_t  type;
+    uint16_t start_addr;
+    uint8_t  count;
+    uint8_t  vals[MAX_REGS_PER_BLOCK];
+} event_block_t;
+
+static int parse_event_block(const char *arg, event_block_t *block)
+{
+    char buf[512];
+    strncpy(buf, arg, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+
+    char *colon = strchr(buf, ':');
+    if (!colon) {
+        printf("Bad -T format, expected 'type:reg=val[,reg=val,...]'\n");
+        return -1;
+    }
+    *colon = '\0';
+
+    int type = atoi(buf);
+    if (!((type >= 1 && type <= 4) || type == 15)) {
+        printf("Bad register type %d, must be 1-4 or 15\n", type);
+        return -1;
+    }
+    block->type = (uint8_t)type;
+
+    typedef struct { uint16_t addr; uint8_t val; } reg_val_t;
+    reg_val_t pairs[MAX_REGS_PER_BLOCK];
+    int pair_count = 0;
+
+    char *token = strtok(colon + 1, ",");
+    while (token) {
+        if (pair_count >= MAX_REGS_PER_BLOCK) {
+            printf("Too many registers in -T block, max %d\n", MAX_REGS_PER_BLOCK);
+            return -1;
+        }
+        char *eq = strchr(token, '=');
+        if (!eq) {
+            printf("Bad -T entry '%s', expected 'reg=val'\n", token);
+            return -1;
+        }
+        *eq = '\0';
+        int addr = atoi(token);
+        int val  = atoi(eq + 1);
+        if (addr < 0 || addr > 0xFFFF) {
+            printf("Bad register address %d\n", addr);
+            return -1;
+        }
+        if (val < 0 || val > 2) {
+            printf("Bad control value %d, must be 0-2\n", val);
+            return -1;
+        }
+        pairs[pair_count].addr = (uint16_t)addr;
+        pairs[pair_count].val  = (uint8_t)val;
+        pair_count++;
+        token = strtok(NULL, ",");
+    }
+
+    if (pair_count == 0) {
+        printf("No registers specified in -T block\n");
+        return -1;
+    }
+
+    for (int i = 0; i < pair_count - 1; i++) {
+        for (int j = 0; j < pair_count - 1 - i; j++) {
+            if (pairs[j].addr > pairs[j + 1].addr) {
+                reg_val_t tmp = pairs[j];
+                pairs[j]     = pairs[j + 1];
+                pairs[j + 1] = tmp;
+            }
+        }
+    }
+
+    uint16_t min_addr = pairs[0].addr;
+    uint16_t max_addr = pairs[pair_count - 1].addr;
+    int count = (int)(max_addr - min_addr) + 1;
+    if (count > 255) {
+        printf("Register range too wide (%d), max 255\n", count);
+        return -1;
+    }
+
+    block->start_addr = min_addr;
+    block->count      = (uint8_t)count;
+    memset(block->vals, 0, (size_t)count);
+
+    for (int i = 0; i < pair_count; i++) {
+        block->vals[pairs[i].addr - min_addr] = pairs[i].val;
+    }
+
+    return 0;
+}
+
+void tool_event_ctrl_multi(int id, event_block_t *blocks, int block_count)
+{
+    uint8_t *p            = tx_buf;
+    *p++ = (uint8_t)id;
+    *p++ = SPECIAL_CMD;
+    *p++ = CMD_EXT_EVENTS_CTRL;
+
+    uint8_t *payload_len_ptr = p++;
+    uint8_t *payload_start   = p;
+
+    for (int i = 0; i < block_count; i++) {
+        event_block_t *b = &blocks[i];
+        *p++ = b->type;
+        *p++ = (b->start_addr >> 8) & 0xFF;
+        *p++ = (b->start_addr >> 0) & 0xFF;
+        *p++ = b->count;
+        for (int j = 0; j < b->count; j++) {
+            *p++ = b->vals[j];
+        }
+    }
+
+    int payload_len = (int)(p - payload_start);
+    if (payload_len > 255) {
+        printf("Total event config payload exceeds 255 bytes\n");
+        return;
+    }
+    *payload_len_ptr = (uint8_t)payload_len;
+
+    send_cmd_in_tx_buf((int)(p - tx_buf));
+
+    uint8_t *r;
+    read_responce(&r);
+}
+
 void tool_event_ctrl(int id, uint8_t type, uint16_t addr, uint8_t val)
 {
-    typedef struct __attribute__((__packed__)) {
-        uint8_t type;
-        uint8_t event_id[2];
-        uint8_t len;
-        uint8_t ctrl;
-    } event_ctrl_t;
-
-    tx_buf[0] = id;
-    tx_buf[1] = SPECIAL_CMD;
-    tx_buf[2] = CMD_EXT_EVENTS_CTRL;
-    tx_buf[3] = sizeof(event_ctrl_t);      // fixed only one reg config
-
-    event_ctrl_t * ectrl = (event_ctrl_t *)&tx_buf[4];
-
-    ectrl->type = type;
-    u16_to_be_buf8(ectrl->event_id, addr);
-    ectrl->len = 1;
-    ectrl->ctrl = val;
-
-    send_cmd_in_tx_buf(9);
-
-    uint8_t * r;
-    int len = read_responce(&r);
-    return;
+    event_block_t block;
+    block.type       = type;
+    block.start_addr = addr;
+    block.count      = 1;
+    block.vals[0]    = val;
+    tool_event_ctrl_multi(id, &block, 1);
 }
 
 char* get_real_path(const char* path) {
@@ -853,17 +965,24 @@ void print_help(const char* argv0)
             "    -r reg         event control reg\n"
             "    -t type        event control type\n"
             "    -c ctrl        event control value\n"
+            "    -T spec        multi-reg event block: 'type:reg=val[,reg=val,...]' (repeatable)\n"
+            "                   type: 1=coil 2=discrete 3=holding 4=input 15=system\n"
+            "                   val:  0=off 1=low priority 2=high priority\n"
             "    -h             show help\n"
             "\n"
             "For scan use:              %s -d device [-b baud] [-D]\n"
             "For scan some old fw use:  %s -d device [-b baud] -L [-D]\n"
             "For set slave id use:      %s -d device [-b baud] -s sn -i id [-D]\n"
             "For setup event use:       %s -d device [-b baud] -i id -r reg -t type -c ctrl\n"
+            "For setup multi-reg events:%s -d device [-b baud] -i id -T 'type:reg=val[,...]' [-T ...]\n"
+            "Multi-reg event examples:\n"
+            "         %s -d device [-b baud] -i 10 -T '2:4=1,6=1'                (discrete regs 4,6 low prio)\n"
+            "         %s -d device [-b baud] -i 10 -T '2:4=1,6=1' -T '4:464=2,466=2,473=2'\n"
             "Event request examples:\n"
             "         %s -d device [-b baud] -e 0               (request + nothing to confirm)\n"
             "         %s -d device [-b baud] -e 4               (request + confirm events from slave 4 flag 0)\n"
             "         %s -d device [-b baud] -E 6               (request + confirm events from slave 6 flag 1)\n"
-            , argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0);
+            , argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0);
 }
 
 int main(int argc, char *argv[])
@@ -891,8 +1010,10 @@ int main(int argc, char *argv[])
     int ev_r = -1;          // event register address
     int ev_t = -1;          // event register type
     int ev_c = -1;          // event ctrl value
+    const char *block_strs[MAX_EVENT_BLOCKS];
+    int block_str_count = 0;
 
-    while ((c = getopt(argc, argv, "d:b:Ls:i:l:r:t:c:e:p:E:Dh")) != -1) {
+    while ((c = getopt(argc, argv, "d:b:Ls:i:l:r:t:c:e:p:E:DhT:")) != -1) {
         switch(c) {
         case 'd':
             printf("Serial port: %s\n", optarg);
@@ -964,6 +1085,15 @@ int main(int argc, char *argv[])
             sscanf(optarg, "%d", &confirm_id);
             break;
 
+        case 'T':
+            if (block_str_count < MAX_EVENT_BLOCKS) {
+                block_strs[block_str_count++] = optarg;
+            } else {
+                printf("Too many -T blocks, max %d\n", MAX_EVENT_BLOCKS);
+                return EXIT_INVALIDARGUMENT;
+            }
+            break;
+
         default:
             print_help(argv[0]);
             return EXIT_INVALIDARGUMENT;
@@ -984,6 +1114,24 @@ int main(int argc, char *argv[])
             maxlen = 0xFF;
         }
         tool_event(id, maxlen, confirm_id,  event_request - 1);
+        return 0;
+    }
+    if (block_str_count > 0) {
+        if (ev_r != -1) {
+            printf("-T and -r/-t/-c are mutually exclusive\n");
+            return EXIT_INVALIDARGUMENT;
+        }
+        if ((id < 1) || (id > 247)) {
+            printf("WRONG id\n");
+            return EXIT_INVALIDARGUMENT;
+        }
+        event_block_t blocks[MAX_EVENT_BLOCKS];
+        for (int i = 0; i < block_str_count; i++) {
+            if (parse_event_block(block_strs[i], &blocks[i]) != 0) {
+                return EXIT_INVALIDARGUMENT;
+            }
+        }
+        tool_event_ctrl_multi(id, blocks, block_str_count);
         return 0;
     }
     if (ev_r != -1) {
