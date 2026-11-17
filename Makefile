@@ -30,7 +30,7 @@ $(BIN_NAME): scanner.c modbus_crc.c $(if $(USE_SYSTEM_LIBS),,libserialport/.libs
 	$(CC) $(CFLAGS) scanner.c modbus_crc.c -o $@ $(LIBS)
 
 install:
-	install -Dm755 $(BIN_NAME) -t $(DESTDIR)$(PREFIX)/bin
+	install -Dm755 $(BIN_NAME) -t "$(DESTDIR)$(PREFIX)/bin"
 
 clean:
 	-@rm -f $(BIN_NAME)
