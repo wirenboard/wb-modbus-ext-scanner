@@ -1,3 +1,10 @@
+wb-modbus-ext-scanner (1.5.3) stable; urgency=medium
+
+  * Ask a client in the protocol docs to run a whole scan with one command,
+    0x46 or 0x60: whether they share the scan state is not defined
+
+ -- Ilia Skochilov <ilia.skochilov@wirenboard.com>  Mon, 16 Nov 2026 14:10:37 +0300
+
 wb-modbus-ext-scanner (1.5.2) stable; urgency=medium
 
   * Describe in the protocol docs the request address of every sub-command,

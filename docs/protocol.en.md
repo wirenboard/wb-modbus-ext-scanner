@@ -133,6 +133,8 @@ The scan request can be repeated periodically, allowing the system to detect whe
 
 The client selects the speed and parity settings and sends the start scan command (`0x01`) with them. Next, wait the standard time (3.5 frames); after that, if there are devices on the bus, one of them will return a scan response with the command `0x03`. All preceding `0xFF` bytes must be ignored. If no response is received after the waiting period, then there are no devices on the bus with these connection settings, and you can proceed to scan using other port settings. If a response is received, you can send the command to continue scanning (`0x02`) to receive data about the next device. This process can be repeated until the scan is completed (`0x04`).
 
+The client runs the whole scan, from `0x01` to `0x04`, with one command: `0x46` or `0x60`. Whether the two commands share the scan state is not defined by the protocol.
+
 ### Arbitrage in scanning
 
 You can read more about the arbitration algorithm below.
