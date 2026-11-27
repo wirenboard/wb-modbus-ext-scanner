@@ -1,3 +1,11 @@
+wb-modbus-ext-scanner (1.5.4) stable; urgency=medium
+
+  * Update LICENSE: Wiren Board as the copyright holder,
+    2022 as the first publication year
+  * Fill debian/copyright in the DEP-5 format
+
+ -- Ekaterina Volkova <ekaterina.volkova@wirenboard.com>  Thu, 26 Nov 2026 18:14:00 +0300
+
 wb-modbus-ext-scanner (1.5.3) stable; urgency=medium
 
   * Ask a client in the protocol docs to run a whole scan with one command,
