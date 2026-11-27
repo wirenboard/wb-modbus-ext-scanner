@@ -81,10 +81,12 @@ Change ID for device with serial   4267937719 [FE638FB7] New ID: 3
 
 ## Enable sending modbus register events
 
+### Single register (flags `-r`, `-t`, `-c`)
+
 Example call:
 
 ```sh
-# wb-modbus-scanner -d /dev/ttyRS485-2 -D -i 62 -r0 -t 1 -c 1
+# wb-modbus-scanner -d /dev/ttyRS485-2 -D -i 62 -r 0 -t 1 -c 1
 Serial port: /dev/ttyRS485-2
 Use baud 9600
 
@@ -94,6 +96,36 @@ Use baud 9600
 ```
 
 Here we enabled the device with address 62 to transmit an event when coil (type 1) of register 0 changes with priority 1
+
+### Multiple registers of different types (flag `-T`)
+
+The `-T` flag allows configuring events for multiple registers of different types in a single transaction. The flag can be specified multiple times — each call defines a block of registers of one type.
+
+Format: `-T "type:reg=value[,reg=value,...]"`
+
+- **type**: `1` — coil, `2` — discrete, `3` — holding, `4` — input
+- **value**: `0` — disable, `1` — enable with low priority, `2` — enable with high priority
+
+If there are gaps between specified addresses, they are automatically filled with zeros (event disabled).
+
+Example — enable events for discrete registers 4 and 6, and input registers 464 and 466 on device with address 10:
+
+```sh
+# wb-modbus-scanner -d /dev/ttyRS485-2 -D -i 10 -T "2:4=1,6=1" -T "4:464=2,466=2"
+Serial port: /dev/ttyRS485-2
+Use baud 9600
+    -> :  0A 46 18 0F 02 00 04 03 01 00 01 04 01 D0 03 02 00 02 XX XX
+    <- :  0A 46 18 XX ...
+
+```
+
+Example — disable a previously enabled event for register 4:
+
+```sh
+# wb-modbus-scanner -d /dev/ttyRS485-2 -i 10 -T "2:4=0"
+```
+
+Flags `-T` and `-r/-t/-c` are mutually exclusive.
 
 ## Query events
 
